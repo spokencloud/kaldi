@@ -164,6 +164,8 @@ class DecodableNnetSimple {
   // Gets the output for a particular frame, with 0 <= frame < NumFrames().
   // 'output' must be correctly sized (with dimension OutputDim()).
   void GetOutputForFrame(int32 frame, VectorBase<BaseFloat> *output);
+  void GetOutputForFrameFromFeats(int32 frame, const Matrix<BaseFloat> &feats, VectorBase<BaseFloat> *output);
+  void ResizeCurrentLogPost();
 
   // Gets the output for a particular frame and pdf_id, with
   // 0 <= subsampled_frame < NumFrames(),
@@ -183,6 +185,7 @@ class DecodableNnetSimple {
   // This call is made to ensure that we have the log-probs for this frame
   // cached in current_log_post_.
   void EnsureFrameIsComputed(int32 subsampled_frame);
+  void EnsureFrameIsComputedFromFeats(int32 subsampled_frame, const Matrix<BaseFloat> &feats);
 
   // This function does the actual nnet computation; it is called from
   // EnsureFrameIsComputed.  Any padding at file start/end is done by
