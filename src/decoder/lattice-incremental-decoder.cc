@@ -70,8 +70,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::InitDecoding() {
   StateId start_state = fst_->Start();
   KALDI_ASSERT(start_state != fst::kNoStateId);
   active_toks_.resize(1);
-  Token *start_tok = new Token(0.0, 0.0, NULL, NULL, NULL);
-  active_toks_[0].toks = start_tok;
+  auto start_tok = active_toks_[0].AddToken(0.0, 0.0, nullptr);
   toks_.Insert(start_state, start_tok);
   num_toks_++;
 
@@ -200,16 +199,13 @@ inline Token *LatticeIncrementalDecoderTpl<FST, Token>::FindOrAddToken(
   // Returns the Token pointer.  Sets "changed" (if non-NULL) to true
   // if the token was newly created or the cost changed.
   KALDI_ASSERT(frame_plus_one < active_toks_.size());
-  Token *&toks = active_toks_[frame_plus_one].toks;
   Elem *e_found = toks_.Find(state);
   if (e_found == NULL) { // no such token presently.
     const BaseFloat extra_cost = 0.0;
     // tokens on the currently final frame have zero extra_cost
     // as any of them could end up
     // on the winning path.
-    Token *new_tok = new Token(tot_cost, extra_cost, NULL, toks, backpointer);
-    // NULL: no forward links yet
-    toks = new_tok;
+    auto new_tok = active_toks_[frame_plus_one].AddToken(tot_cost, extra_cost, backpointer);
     num_toks_++;
     toks_.Insert(state, new_tok);
     if (changed) *changed = true;
@@ -267,28 +263,24 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneForwardLinks(
     changed = false;
     for (Token *tok = active_toks_[frame_plus_one].toks; tok != NULL;
          tok = tok->next) {
-      ForwardLinkT *link, *prev_link = NULL;
       // will recompute tok_extra_cost for tok.
       BaseFloat tok_extra_cost = std::numeric_limits<BaseFloat>::infinity();
       // tok_extra_cost is the best (min) of link_extra_cost of outgoing links
-      for (link = tok->links; link != NULL;) {
+      for (auto link_iter = begin(tok->forward_links); link_iter != end(tok->forward_links); ) {
+        auto &link = *link_iter;
         // See if we need to excise this link...
-        Token *next_tok = link->next_tok;
+        Token *next_tok = link.next_tok;
         BaseFloat link_extra_cost =
             next_tok->extra_cost +
-            ((tok->tot_cost + link->acoustic_cost + link->graph_cost) -
+            ((tok->tot_cost + link.acoustic_cost + link.graph_cost) -
              next_tok->tot_cost); // difference in brackets is >= 0
         // link_exta_cost is the difference in score between the best paths
         // through link source state and through link destination state
         KALDI_ASSERT(link_extra_cost == link_extra_cost); // check for NaN
+        auto curr_link_iter = link_iter;
+        ++link_iter;
         if (link_extra_cost > config_.lattice_beam) {     // excise link
-          ForwardLinkT *next_link = link->next;
-          if (prev_link != NULL)
-            prev_link->next = next_link;
-          else
-            tok->links = next_link;
-          delete link;
-          link = next_link; // advance link but leave prev_link the same.
+          tok->DeleteForwardLink(curr_link_iter);
           *links_pruned = true;
         } else { // keep the link and update the tok_extra_cost if needed.
           if (link_extra_cost < 0.0) { // this is just a precaution.
@@ -297,8 +289,6 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneForwardLinks(
             link_extra_cost = 0.0;
           }
           if (link_extra_cost < tok_extra_cost) tok_extra_cost = link_extra_cost;
-          prev_link = link; // move to next link
-          link = link->next;
         }
       } // for all outgoing links
       if (fabs(tok_extra_cost - tok->extra_cost) > delta)
@@ -345,7 +335,6 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
     changed = false;
     for (Token *tok = active_toks_[frame_plus_one].toks; tok != NULL;
          tok = tok->next) {
-      ForwardLinkT *link, *prev_link = NULL;
       // will recompute tok_extra_cost.  It has a term in it that corresponds
       // to the "final-prob", so instead of initializing tok_extra_cost to infinity
       // below we set it to the difference between the (score+final_prob) of this
@@ -365,21 +354,18 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
       // tok_extra_cost will be a "min" over either directly being final, or
       // being indirectly final through other links, and the loop below may
       // decrease its value:
-      for (link = tok->links; link != NULL;) {
+      for (auto link_iter = begin(tok->forward_links); link_iter != end(tok->forward_links); ) {
+        auto &link = *link_iter;
         // See if we need to excise this link...
-        Token *next_tok = link->next_tok;
+        Token *next_tok = link.next_tok;
         BaseFloat link_extra_cost =
             next_tok->extra_cost +
-            ((tok->tot_cost + link->acoustic_cost + link->graph_cost) -
+            ((tok->tot_cost + link.acoustic_cost + link.graph_cost) -
              next_tok->tot_cost);
+        auto curr_link_iter = link_iter;
+        ++link_iter;
         if (link_extra_cost > config_.lattice_beam) { // excise link
-          ForwardLinkT *next_link = link->next;
-          if (prev_link != NULL)
-            prev_link->next = next_link;
-          else
-            tok->links = next_link;
-          delete link;
-          link = next_link; // advance link but leave prev_link the same.
+          tok->DeleteForwardLink(curr_link_iter);
         } else {            // keep the link and update the tok_extra_cost if needed.
           if (link_extra_cost < 0.0) { // this is just a precaution.
             if (link_extra_cost < -0.01)
@@ -387,8 +373,6 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
             link_extra_cost = 0.0;
           }
           if (link_extra_cost < tok_extra_cost) tok_extra_cost = link_extra_cost;
-          prev_link = link;
-          link = link->next;
         }
       }
       // prune away tokens worse than lattice_beam above best path.  This step
@@ -748,7 +732,6 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
               FindOrAddToken(arc.nextstate, frame + 1, tot_cost, tok, NULL);
           // NULL: no change indicator needed
 
-          // Add ForwardLink from tok to next_tok (put on head of list tok->links)
           tok->AddForwardLink(next_tok, arc.ilabel, arc.olabel, graph_cost, ac_cost);
         }
       } // for all arcs
@@ -1001,8 +984,8 @@ const CompactLattice& LatticeIncrementalDecoderTpl<FST, Token>::GetLattice(
         auto iter = tok2state_map.find(tok);
         KALDI_ASSERT(iter != tok2state_map.end());
         StateId cur_state = iter->second;
-        for (ForwardLinkT *l = tok->links; l != NULL; l = l->next) {
-          auto next_iter = tok2state_map.find(l->next_tok);
+        for (auto &l : tok->forward_links) {
+          auto next_iter = tok2state_map.find(l.next_tok);
           if (next_iter == tok2state_map.end()) {
             // Emitting arcs from the last frame we're including -- ignore
             // these.
@@ -1010,9 +993,9 @@ const CompactLattice& LatticeIncrementalDecoderTpl<FST, Token>::GetLattice(
             continue;
           }
           StateId next_state = next_iter->second;
-          BaseFloat this_offset = (l->ilabel != 0 ? cost_offset : 0);
-          LatticeArc arc(l->ilabel, l->olabel,
-                         LatticeWeight(l->graph_cost, l->acoustic_cost - this_offset),
+          BaseFloat this_offset = (l.ilabel != 0 ? cost_offset : 0);
+          LatticeArc arc(l.ilabel, l.olabel,
+                         LatticeWeight(l.graph_cost, l.acoustic_cost - this_offset),
                          next_state);
           // Note: the epsilons get redundantly included at the end and beginning
           // of successive chunks.  These will get removed in the determinization.
