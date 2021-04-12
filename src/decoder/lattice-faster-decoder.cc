@@ -64,9 +64,9 @@ void LatticeFasterDecoderTpl<FST, Token>::InitDecoding() {
   StateId start_state = fst_->Start();
   KALDI_ASSERT(start_state != fst::kNoStateId);
   active_toks_.emplace_back();
-  auto start_tok = active_toks_.back().AddToken(0.0, 0.0, nullptr);
-  toks_.Insert(start_state, start_tok);
+  auto &start_tok = active_toks_.back().AddToken(0.0, 0.0, nullptr);
   num_toks_++;
+  toks_.Insert(start_state, &start_tok);
   ProcessNonemitting(config_.beam);
 }
 
@@ -256,9 +256,9 @@ LatticeFasterDecoderTpl<FST, Token>::FindOrAddToken(
     // tokens on the currently final frame have zero extra_cost
     // as any of them could end up
     // on the winning path.
-    auto new_tok = active_toks_[frame_plus_one].AddToken(tot_cost, extra_cost, backpointer);
+    auto &new_tok = active_toks_[frame_plus_one].AddToken(tot_cost, extra_cost, backpointer);
     num_toks_++;
-    e_found->val = new_tok;
+    e_found->val = &new_tok;
     if (changed) *changed = true;
     return e_found;
   } else {
