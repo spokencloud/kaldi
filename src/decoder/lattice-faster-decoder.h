@@ -148,6 +148,16 @@ struct StdToken {
   //'next' is the next in the singly-linked list of tokens for this frame.
   Token *next;
 
+  void DeleteForwardLinks()
+  {
+    for (auto link = links; link; ) {
+      auto next_link = link->next;
+      delete link;
+      link = next_link;
+    }
+    links = nullptr;
+  }
+
   // This function does nothing and should be optimized out; it's needed
   // so we can share the regular LatticeFasterDecoderTpl code and the code
   // for LatticeFasterOnlineDecoder that supports fast traceback.
@@ -196,6 +206,16 @@ struct BackpointerToken {
   // LatticeFasterOnlineDecoderTpl; it plays no part in the lattice generation
   // (the "links" list is what stores the forward links, for that).
   Token *backpointer;
+
+  void DeleteForwardLinks()
+  {
+    for (auto link = links; link; ) {
+      auto next_link = link->next;
+      delete link;
+      link = next_link;
+    }
+    links = nullptr;
+  }
 
   inline void SetBackpointer (Token *backpointer) {
     this->backpointer = backpointer;
@@ -343,9 +363,6 @@ class LatticeFasterDecoderTpl {
   // we make things protected instead of private, as code in
   // LatticeFasterOnlineDecoderTpl, which inherits from this, also uses the
   // internals.
-
-  // Deletes the elements of the singly linked list tok->links.
-  inline static void DeleteForwardLinks(Token *tok);
 
   // head of per-frame list of Tokens (list is in topological order),
   // and something saying whether we ever pruned it using PruneForwardLinks.

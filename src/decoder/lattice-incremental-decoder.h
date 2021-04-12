@@ -610,7 +610,6 @@ class LatticeIncrementalDecoderTpl {
 
   /** NOTE: for parts the internal implementation that are shared with LatticeFasterDecoer,
       we have removed the comments.*/
-  inline static void DeleteForwardLinks(Token *tok);
   struct TokenList {
     Token *toks;
     bool must_prune_forward_links;
