@@ -792,8 +792,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
           // NULL: no change indicator needed
 
           // Add ForwardLink from tok to next_tok (put on head of list tok->links)
-          tok->links = new ForwardLinkT(e_next->val, arc.ilabel, arc.olabel,
-                                        graph_cost, ac_cost, tok->links);
+          tok->AddForwardLink(e_next->val, arc.ilabel, arc.olabel, graph_cost, ac_cost);
         }
       } // for all arcs
     }
@@ -859,8 +858,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
           Elem *e_new = FindOrAddToken(arc.nextstate, frame + 1, tot_cost,
                                           tok, &changed);
 
-          tok->links = new ForwardLinkT(e_new->val, 0, arc.olabel,
-                                        graph_cost, 0, tok->links);
+          tok->AddForwardLink(e_new->val, 0, arc.olabel, graph_cost, 0);
 
           // "changed" tells us whether the new token has a different
           // cost from before, or is new [if so, add into queue].
@@ -885,7 +883,7 @@ template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::ClearActiveTokens() { // a cleanup routine, at utt end/begin
   for (size_t i = 0; i < active_toks_.size(); i++) {
     // Delete all tokens alive on this frame, and any forward
-    // links they may have.
+    // links they madelete y have.
     for (Token *tok = active_toks_[i].toks; tok != NULL; ) {
       tok->DeleteForwardLinks();
       Token *next_tok = tok->next;

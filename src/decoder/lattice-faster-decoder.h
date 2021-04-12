@@ -158,6 +158,12 @@ struct StdToken {
     links = nullptr;
   }
 
+  void AddForwardLink(
+    Token *next_tok, fst::StdArc::Label ilabel, fst::StdArc::Label olabel,
+    BaseFloat graph_cost, BaseFloat acoustic_cost) {
+    links = new ForwardLinkT(next_tok, ilabel, olabel, graph_cost, acoustic_cost, links);
+  }
+
   // This function does nothing and should be optimized out; it's needed
   // so we can share the regular LatticeFasterDecoderTpl code and the code
   // for LatticeFasterOnlineDecoder that supports fast traceback.
@@ -215,6 +221,12 @@ struct BackpointerToken {
       link = next_link;
     }
     links = nullptr;
+  }
+
+  void AddForwardLink(
+    Token *next_tok, fst::StdArc::Label ilabel, fst::StdArc::Label olabel,
+    BaseFloat graph_cost, BaseFloat acoustic_cost) {
+    links = new ForwardLinkT(next_tok, ilabel, olabel, graph_cost, acoustic_cost, links);
   }
 
   inline void SetBackpointer (Token *backpointer) {
