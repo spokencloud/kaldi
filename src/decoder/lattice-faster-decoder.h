@@ -159,6 +159,9 @@ struct BaseToken {
   BaseToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *next):
     tot_cost(tot_cost), extra_cost(extra_cost), next(next)
   {}
+  BaseToken(BaseToken &&) noexcept = default;
+
+  BaseToken &operator =(BaseToken &&) noexcept = default;
 };
 
 struct StdToken : public BaseToken<StdToken> {
@@ -206,13 +209,39 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
   // and something saying whether we ever pruned it using PruneForwardLinks.
   template<typename Token>
   struct TokenList {
-    Token *toks;
+    template<typename T>
+    struct Iterator
+    {
+      using iterator_category = std::input_iterator_tag;
+      using difference_type   = std::ptrdiff_t;
+      using value_type        = T;
+      using pointer           = value_type *;
+      using reference         = value_type &;
+
+      pointer ptr;
+
+      explicit Iterator(pointer ptr) : ptr(ptr) {}
+
+      reference operator*() const { return *ptr; }
+      pointer operator->() { return ptr; }
+
+      Iterator& operator++() { ptr = ptr->next; return *this; }
+      Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
+
+      friend bool operator== (const Iterator& a, const Iterator& b) { return a.ptr == b.ptr; };
+      friend bool operator!= (const Iterator& a, const Iterator& b) { return a.ptr != b.ptr; };
+    };
+
     bool must_prune_forward_links;
     bool must_prune_tokens;
 
     Token *AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
       toks = new Token(tot_cost, extra_cost, toks, backpointer);
       return toks;
+    }
+
+    void DeleteToken(const Iterator<Token> &token_iter) {
+      DeleteToken(&*token_iter);
     }
 
     void DeleteToken(Token *tok) {
@@ -229,14 +258,14 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
     }
 
     TokenList() :
-      toks(nullptr),
       must_prune_forward_links(true),
-      must_prune_tokens(true)
+      must_prune_tokens(true),
+      toks(nullptr)
     {}
     TokenList(TokenList &&tl) noexcept :
-      toks(std::exchange(tl.toks, nullptr)),
       must_prune_forward_links(tl.must_prune_forward_links),
-      must_prune_tokens(tl.must_prune_tokens)
+      must_prune_tokens(tl.must_prune_tokens),
+      toks(std::exchange(tl.toks, nullptr))
     {}
 
     ~TokenList() {
@@ -244,6 +273,39 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
         DeleteToken(toks);
       }
     }
+
+    auto begin() { return Iterator<Token>(toks); }
+    auto end()   { return Iterator<Token>(nullptr); }
+
+    auto begin() const { return Iterator<const Token>(toks); }
+    auto end() const   { return Iterator<const Token>(nullptr); }
+
+    bool empty() const { return !toks; }
+
+    int size() const {
+      int result = 0;
+      for (auto &tok_iter : *this)
+        if (&tok_iter)  // only to suppress warning about unused variable
+          result++;
+      return result;
+    }
+
+    Token &back() {
+      auto tok = toks;
+      while (tok->next)
+        tok = tok->next;
+      return *tok;
+    }
+
+    const Token &back() const {
+      auto tok = toks;
+      while (tok->next)
+        tok = tok->next;
+      return *tok;
+    }
+
+  private:
+    Token *toks;
   };
 }  // namespace decoder
 
@@ -435,7 +497,7 @@ class LatticeFasterDecoderTpl {
   // forward-cost[t] if there were no final-probs active on the final frame.
   // You cannot call this after FinalizeDecoding() has been called; in that
   // case you should get the answer from class-member variables.
-  void ComputeFinalCosts(unordered_map<Token*, BaseFloat> *final_costs,
+  void ComputeFinalCosts(unordered_map<const Token*, BaseFloat> *final_costs,
                          BaseFloat *final_relative_cost,
                          BaseFloat *final_best_cost) const;
 
@@ -513,7 +575,7 @@ class LatticeFasterDecoderTpl {
   bool decoding_finalized_;
   /// For the meaning of the next 3 variables, see the comment for
   /// decoding_finalized_ above., and ComputeFinalCosts().
-  unordered_map<Token*, BaseFloat> final_costs_;
+  unordered_map<const Token*, BaseFloat> final_costs_;
   BaseFloat final_relative_cost_;
   BaseFloat final_best_cost_;
 
@@ -536,8 +598,8 @@ class LatticeFasterDecoderTpl {
   // cycles, which are not allowed).  Note: the output list may contain NULLs,
   // which the caller should pass over; it just happens to be more efficient for
   // the algorithm to output a list that contains NULLs.
-  static void TopSortTokens(Token *tok_list,
-                            std::vector<Token*> *topsorted_list);
+  static void TopSortTokens(const decoder::TokenList<Token> &tok_list,
+                            std::vector<const Token*> *topsorted_list);
 
   KALDI_DISALLOW_COPY_AND_ASSIGN(LatticeFasterDecoderTpl);
 };

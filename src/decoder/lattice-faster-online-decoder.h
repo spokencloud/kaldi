@@ -76,14 +76,14 @@ class LatticeFasterOnlineDecoderTpl:
 
 
   struct BestPathIterator {
-    void *tok;
+    const void *tok;
     int32 frame;
     // note, "frame" is the frame-index of the frame you'll get the
     // transition-id for next time, if you call TraceBackBestPath on this
     // iterator (assuming it's not an epsilon transition).  Note that this
     // is one less than you might reasonably expect, e.g. it's -1 for
     // the nonemitting transitions before the first frame.
-    BestPathIterator(void *t, int32 f): tok(t), frame(f) { }
+    BestPathIterator(const void *t, int32 f): tok(t), frame(f) { }
     bool Done() const { return tok == NULL; }
   };
 
