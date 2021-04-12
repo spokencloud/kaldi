@@ -695,9 +695,6 @@ class LatticeIncrementalDecoderTpl {
   // using the "next" pointer.  We delete them manually.
   void DeleteElems(Elem *list);
 
-  void ClearActiveTokens();
-
-
   // Returns the number of active tokens on frame `frame`.  Can be used as part
   // of a heuristic to decide which frame to determinize until, if you are not
   // at the end of an utterance.

@@ -235,6 +235,12 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
       must_prune_forward_links(true),
       must_prune_tokens(true)
     {}
+
+    ~TokenList() {
+      while (toks) {
+        DeleteToken(toks);
+      }
+    }
   };
 }  // namespace decoder
 
@@ -529,8 +535,6 @@ class LatticeFasterDecoderTpl {
   // the algorithm to output a list that contains NULLs.
   static void TopSortTokens(Token *tok_list,
                             std::vector<Token*> *topsorted_list);
-
-  void ClearActiveTokens();
 
   KALDI_DISALLOW_COPY_AND_ASSIGN(LatticeFasterDecoderTpl);
 };
