@@ -352,7 +352,13 @@ class LatticeFasterDecoderTpl {
     Token *toks;
     bool must_prune_forward_links;
     bool must_prune_tokens;
-    TokenList(): toks(NULL), must_prune_forward_links(true),
+
+    Token *AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
+      toks = new Token(tot_cost, extra_cost, nullptr, toks, backpointer);
+      return toks;
+    }
+
+    TokenList(): toks(nullptr), must_prune_forward_links(true),
                  must_prune_tokens(true) { }
   };
 
