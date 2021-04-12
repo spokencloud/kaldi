@@ -120,10 +120,9 @@ struct ForwardLink {
       next(next) { }
 };
 
-
-struct StdToken {
-  using ForwardLinkT = ForwardLink<StdToken>;
-  using Token = StdToken;
+template<typename Token>
+struct BaseToken {
+  using ForwardLinkT = ForwardLink<Token>;
 
   // Standard token type for LatticeFasterDecoder.  Each active HCLG
   // (decoding-graph) state on each frame has one token.
@@ -164,6 +163,14 @@ struct StdToken {
     links = new ForwardLinkT(next_tok, ilabel, olabel, graph_cost, acoustic_cost, links);
   }
 
+  BaseToken(BaseFloat tot_cost, BaseFloat extra_cost, ForwardLinkT *links, Token *next):
+    tot_cost(tot_cost), extra_cost(extra_cost), links(links), next(next)
+  {}
+};
+
+struct StdToken : public BaseToken<StdToken> {
+  using Token = StdToken;
+
   // This function does nothing and should be optimized out; it's needed
   // so we can share the regular LatticeFasterDecoderTpl code and the code
   // for LatticeFasterOnlineDecoder that supports fast traceback.
@@ -173,38 +180,15 @@ struct StdToken {
   // needed so that we can use the same decoder code for LatticeFasterDecoderTpl
   // and LatticeFasterOnlineDecoderTpl (which needs backpointers to support a
   // fast way to obtain the best path).
-  inline StdToken(BaseFloat tot_cost, BaseFloat extra_cost, ForwardLinkT *links,
-                  Token *next, Token *backpointer):
-      tot_cost(tot_cost), extra_cost(extra_cost), links(links), next(next) { }
+  StdToken(
+    BaseFloat tot_cost, BaseFloat extra_cost, ForwardLinkT *links, Token *next, Token *backpointer
+  ):
+    BaseToken<StdToken>(tot_cost, extra_cost, links, next)
+  {}
 };
 
-struct BackpointerToken {
-  using ForwardLinkT = ForwardLink<BackpointerToken>;
+struct BackpointerToken : public BaseToken<BackpointerToken> {
   using Token = BackpointerToken;
-
-  // BackpointerToken is like Token but also
-  // Standard token type for LatticeFasterDecoder.  Each active HCLG
-  // (decoding-graph) state on each frame has one token.
-
-  // tot_cost is the total (LM + acoustic) cost from the beginning of the
-  // utterance up to this point.  (but see cost_offset_, which is subtracted
-  // to keep it in a good numerical range).
-  BaseFloat tot_cost;
-
-  // exta_cost is >= 0.  After calling PruneForwardLinks, this equals
-  // the minimum difference between the cost of the best path, and the cost of
-  // this is on, and the cost of the absolute best path, under the assumption
-  // that any of the currently active states at the decoding front may
-  // eventually succeed (e.g. if you were to take the currently active states
-  // one by one and compute this difference, and then take the minimum).
-  BaseFloat extra_cost;
-
-  // 'links' is the head of singly-linked list of ForwardLinks, which is what we
-  // use for lattice generation.
-  ForwardLinkT *links;
-
-  //'next' is the next in the singly-linked list of tokens for this frame.
-  BackpointerToken *next;
 
   // Best preceding BackpointerToken (could be a on this frame, connected to
   // this via an epsilon transition, or on a previous frame).  This is only
@@ -213,30 +197,16 @@ struct BackpointerToken {
   // (the "links" list is what stores the forward links, for that).
   Token *backpointer;
 
-  void DeleteForwardLinks()
-  {
-    for (auto link = links; link; ) {
-      auto next_link = link->next;
-      delete link;
-      link = next_link;
-    }
-    links = nullptr;
-  }
-
-  void AddForwardLink(
-    Token *next_tok, fst::StdArc::Label ilabel, fst::StdArc::Label olabel,
-    BaseFloat graph_cost, BaseFloat acoustic_cost) {
-    links = new ForwardLinkT(next_tok, ilabel, olabel, graph_cost, acoustic_cost, links);
-  }
-
   inline void SetBackpointer (Token *backpointer) {
     this->backpointer = backpointer;
   }
 
-  inline BackpointerToken(BaseFloat tot_cost, BaseFloat extra_cost, ForwardLinkT *links,
-                          Token *next, Token *backpointer):
-      tot_cost(tot_cost), extra_cost(extra_cost), links(links), next(next),
-      backpointer(backpointer) { }
+  BackpointerToken(
+    BaseFloat tot_cost, BaseFloat extra_cost, ForwardLinkT *links, Token *next, Token *backpointer
+  ):
+    BaseToken<BackpointerToken>(tot_cost, extra_cost, links, next),
+    backpointer(backpointer)
+  {}
 };
 
 }  // namespace decoder
