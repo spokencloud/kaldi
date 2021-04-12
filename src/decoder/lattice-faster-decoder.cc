@@ -155,20 +155,17 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
   for (int32 f = 0; f <= num_frames; f++) {
     for (Token *tok = active_toks_[f].toks; tok != NULL; tok = tok->next) {
       StateId cur_state = tok_map[tok];
-      for (ForwardLinkT *l = tok->links;
-           l != NULL;
-           l = l->next) {
-        typename unordered_map<Token*, StateId>::const_iterator
-            iter = tok_map.find(l->next_tok);
-        StateId nextstate = iter->second;
+      for (auto &l : tok->forward_links) {
+        auto iter = tok_map.find(l.next_tok);
         KALDI_ASSERT(iter != tok_map.end());
+        StateId nextstate = iter->second;
         BaseFloat cost_offset = 0.0;
-        if (l->ilabel != 0) {  // emitting..
+        if (l.ilabel != 0) {  // emitting..
           KALDI_ASSERT(f >= 0 && f < cost_offsets_.size());
           cost_offset = cost_offsets_[f];
         }
-        Arc arc(l->ilabel, l->olabel,
-                Weight(l->graph_cost, l->acoustic_cost - cost_offset),
+        Arc arc(l.ilabel, l.olabel,
+                Weight(l.graph_cost, l.acoustic_cost - cost_offset),
                 nextstate);
         ofst->AddArc(cur_state, arc);
       }
@@ -319,25 +316,23 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
     changed = false;
     for (Token *tok = active_toks_[frame_plus_one].toks;
          tok != NULL; tok = tok->next) {
-      ForwardLinkT *link, *prev_link = NULL;
       // will recompute tok_extra_cost for tok.
       BaseFloat tok_extra_cost = std::numeric_limits<BaseFloat>::infinity();
       // tok_extra_cost is the best (min) of link_extra_cost of outgoing links
-      for (link = tok->links; link != NULL; ) {
+      for (auto link_iter = begin(tok->forward_links); link_iter != end(tok->forward_links);) {
         // See if we need to excise this link...
-        Token *next_tok = link->next_tok;
+        auto &link = *link_iter;
+        Token *next_tok = link.next_tok;
         BaseFloat link_extra_cost = next_tok->extra_cost +
-            ((tok->tot_cost + link->acoustic_cost + link->graph_cost)
+            ((tok->tot_cost + link.acoustic_cost + link.graph_cost)
              - next_tok->tot_cost);  // difference in brackets is >= 0
         // link_exta_cost is the difference in score between the best paths
         // through link source state and through link destination state
         KALDI_ASSERT(link_extra_cost == link_extra_cost);  // check for NaN
+        auto curr_link_iter = link_iter;
+        ++link_iter;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
-          ForwardLinkT *next_link = link->next;
-          if (prev_link != NULL) prev_link->next = next_link;
-          else tok->links = next_link;
-          delete link;
-          link = next_link;  // advance link but leave prev_link the same.
+          tok->DeleteForwardLink(curr_link_iter);
           *links_pruned = true;
         } else {   // keep the link and update the tok_extra_cost if needed.
           if (link_extra_cost < 0.0) {  // this is just a precaution.
@@ -347,8 +342,6 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
           }
           if (link_extra_cost < tok_extra_cost)
             tok_extra_cost = link_extra_cost;
-          prev_link = link;  // move to next link
-          link = link->next;
         }
       }  // for all outgoing links
       if (fabs(tok_extra_cost - tok->extra_cost) > delta)
@@ -395,7 +388,6 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
     changed = false;
     for (Token *tok = active_toks_[frame_plus_one].toks;
          tok != NULL; tok = tok->next) {
-      ForwardLinkT *link, *prev_link = NULL;
       // will recompute tok_extra_cost.  It has a term in it that corresponds
       // to the "final-prob", so instead of initializing tok_extra_cost to infinity
       // below we set it to the difference between the (score+final_prob) of this token,
@@ -414,18 +406,17 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
       // tok_extra_cost will be a "min" over either directly being final, or
       // being indirectly final through other links, and the loop below may
       // decrease its value:
-      for (link = tok->links; link != NULL; ) {
+      for (auto link_iter = begin(tok->forward_links); link_iter != end(tok->forward_links); ) {
+        auto &link = *link_iter;
         // See if we need to excise this link...
-        Token *next_tok = link->next_tok;
+        Token *next_tok = link.next_tok;
         BaseFloat link_extra_cost = next_tok->extra_cost +
-            ((tok->tot_cost + link->acoustic_cost + link->graph_cost)
+            ((tok->tot_cost + link.acoustic_cost + link.graph_cost)
              - next_tok->tot_cost);
+        auto curr_link_iter = link_iter;
+        ++link_iter;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
-          ForwardLinkT *next_link = link->next;
-          if (prev_link != NULL) prev_link->next = next_link;
-          else tok->links = next_link;
-          delete link;
-          link = next_link; // advance link but leave prev_link the same.
+          tok->DeleteForwardLink(curr_link_iter);
         } else { // keep the link and update the tok_extra_cost if needed.
           if (link_extra_cost < 0.0) { // this is just a precaution.
             if (link_extra_cost < -0.01)
@@ -434,8 +425,6 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
           }
           if (link_extra_cost < tok_extra_cost)
             tok_extra_cost = link_extra_cost;
-          prev_link = link;
-          link = link->next;
         }
       }
       // prune away tokens worse than lattice_beam above best path.  This step
@@ -787,7 +776,6 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
                                         frame + 1, tot_cost, tok, NULL);
           // NULL: no change indicator needed
 
-          // Add ForwardLink from tok to next_tok (put on head of list tok->links)
           tok->AddForwardLink(e_next->val, arc.ilabel, arc.olabel, graph_cost, ac_cost);
         }
       } // for all arcs
@@ -914,18 +902,18 @@ void LatticeFasterDecoderTpl<FST, Token>::TopSortTokens(
   for (IterType iter = token2pos.begin(); iter != token2pos.end(); ++iter) {
     Token *tok = iter->first;
     int32 pos = iter->second;
-    for (ForwardLinkT *link = tok->links; link != NULL; link = link->next) {
-      if (link->ilabel == 0) {
+    for (auto &link : tok->forward_links) {
+      if (link.ilabel == 0) {
         // We only need to consider epsilon links, since non-epsilon links
         // transition between frames and this function only needs to sort a list
         // of tokens from a single frame.
-        IterType following_iter = token2pos.find(link->next_tok);
+        IterType following_iter = token2pos.find(link.next_tok);
         if (following_iter != token2pos.end()) { // another token on this frame,
                                                  // so must consider it.
           int32 next_pos = following_iter->second;
           if (next_pos < pos) { // reassign the position of the next Token.
             following_iter->second = cur_pos++;
-            reprocess.insert(link->next_tok);
+            reprocess.insert(link.next_tok);
           }
         }
       }
@@ -948,14 +936,14 @@ void LatticeFasterDecoderTpl<FST, Token>::TopSortTokens(
       Token *tok = *iter;
       int32 pos = token2pos[tok];
       // Repeat the processing we did above (for comments, see above).
-      for (ForwardLinkT *link = tok->links; link != NULL; link = link->next) {
-        if (link->ilabel == 0) {
-          IterType following_iter = token2pos.find(link->next_tok);
+      for (auto &link : tok->forward_links) {
+        if (link.ilabel == 0) {
+          IterType following_iter = token2pos.find(link.next_tok);
           if (following_iter != token2pos.end()) {
             int32 next_pos = following_iter->second;
             if (next_pos < pos) {
               following_iter->second = cur_pos++;
-              reprocess.insert(link->next_tok);
+              reprocess.insert(link.next_tok);
             }
           }
         }

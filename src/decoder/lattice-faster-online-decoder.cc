@@ -137,17 +137,15 @@ typename LatticeFasterOnlineDecoderTpl<FST>::BestPathIterator LatticeFasterOnlin
   if (tok->backpointer != NULL) {
     // retrieve the correct forward link(with the best link cost)
     BaseFloat best_cost = std::numeric_limits<BaseFloat>::infinity();
-    ForwardLinkT *link;
-    for (link = tok->backpointer->links;
-         link != NULL; link = link->next) {
-      if (link->next_tok == tok) { // this is a link to "tok"
-        BaseFloat graph_cost = link->graph_cost, 
-                  acoustic_cost = link->acoustic_cost;
+    for (auto &link : tok->backpointer->forward_links) {
+      if (link.next_tok == tok) { // this is a link to "tok"
+        BaseFloat graph_cost = link.graph_cost,
+                  acoustic_cost = link.acoustic_cost;
         BaseFloat cost = graph_cost + acoustic_cost;
         if (cost < best_cost) {
-          oarc->ilabel = link->ilabel;
-          oarc->olabel = link->olabel;
-          if (link->ilabel != 0) {
+          oarc->ilabel = link.ilabel;
+          oarc->olabel = link.olabel;
+          if (link.ilabel != 0) {
             KALDI_ASSERT(static_cast<size_t>(cur_t) < this->cost_offsets_.size());
             acoustic_cost -= this->cost_offsets_[cur_t];
             step_t = -1;
@@ -159,8 +157,7 @@ typename LatticeFasterOnlineDecoderTpl<FST>::BestPathIterator LatticeFasterOnlin
         }
       }
     }
-    if (link == NULL &&
-        best_cost == std::numeric_limits<BaseFloat>::infinity()) { // Did not find correct link.
+    if (best_cost == std::numeric_limits<BaseFloat>::infinity()) { // Did not find correct link.
       KALDI_ERR << "Error tracing best-path back (likely "
                 << "bug in token-pruning algorithm)";
     }
@@ -236,13 +233,11 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
     KALDI_ASSERT(iter != tok_map.end());
     StateId cur_state = iter->second;
 
-    for (ForwardLinkT *l = cur_tok->links;
-         l != NULL;
-         l = l->next) {
-      Token *next_tok = l->next_tok;
+    for (auto &l : cur_tok->forward_links) {
+      Token *next_tok = l.next_tok;
       if (next_tok->extra_cost < beam) {
         // so both the current and the next token are good; create the arc
-        int32 next_frame = l->ilabel == 0 ? cur_frame : cur_frame + 1;
+        int32 next_frame = l.ilabel == 0 ? cur_frame : cur_frame + 1;
         StateId nextstate;
         if (tok_map.find(next_tok) == tok_map.end()) {
           nextstate = tok_map[next_tok] = ofst->AddState();
@@ -250,10 +245,10 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
         } else {
           nextstate = tok_map[next_tok];
         }
-        BaseFloat cost_offset = (l->ilabel != 0 ?
+        BaseFloat cost_offset = (l.ilabel != 0 ?
                                  this->cost_offsets_[cur_frame] : 0);
-        Arc arc(l->ilabel, l->olabel,
-                Weight(l->graph_cost, l->acoustic_cost - cost_offset),
+        Arc arc(l.ilabel, l.olabel,
+                Weight(l.graph_cost, l.acoustic_cost - cost_offset),
                 nextstate);
         ofst->AddArc(cur_state, arc);
       }

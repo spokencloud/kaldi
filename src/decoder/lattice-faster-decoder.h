@@ -110,14 +110,10 @@ struct ForwardLink {
   Label olabel;  // olabel on arc
   BaseFloat graph_cost;  // graph cost of traversing arc (contains LM, etc.)
   BaseFloat acoustic_cost;  // acoustic cost (pre-scaled) of traversing arc
-  ForwardLink *next;  // next in singly-linked list of forward arcs (arcs
-                      // in the state-level lattice) from a token.
-  inline ForwardLink(Token *next_tok, Label ilabel, Label olabel,
-                     BaseFloat graph_cost, BaseFloat acoustic_cost,
-                     ForwardLink *next):
-      next_tok(next_tok), ilabel(ilabel), olabel(olabel),
-      graph_cost(graph_cost), acoustic_cost(acoustic_cost),
-      next(next) { }
+  ForwardLink(Token *next_tok, Label ilabel, Label olabel, BaseFloat graph_cost, BaseFloat acoustic_cost):
+    next_tok(next_tok), ilabel(ilabel), olabel(olabel),
+    graph_cost(graph_cost), acoustic_cost(acoustic_cost)
+  {}
 };
 
 template<typename Token>
@@ -142,29 +138,28 @@ struct BaseToken {
 
   // 'links' is the head of singly-linked list of ForwardLinks, which is what we
   // use for lattice generation.
-  ForwardLinkT *links;
+  std::list<ForwardLinkT> forward_links;
 
   //'next' is the next in the singly-linked list of tokens for this frame.
   Token *next;
 
   void DeleteForwardLinks()
   {
-    for (auto link = links; link; ) {
-      auto next_link = link->next;
-      delete link;
-      link = next_link;
-    }
-    links = nullptr;
+    forward_links.clear();
+  }
+
+  void DeleteForwardLink(typename std::list<ForwardLinkT>::iterator link_iter) {
+    forward_links.erase(link_iter);
   }
 
   void AddForwardLink(
     Token *next_tok, fst::StdArc::Label ilabel, fst::StdArc::Label olabel,
     BaseFloat graph_cost, BaseFloat acoustic_cost) {
-    links = new ForwardLinkT(next_tok, ilabel, olabel, graph_cost, acoustic_cost, links);
+    forward_links.emplace_front(next_tok, ilabel, olabel, graph_cost, acoustic_cost);
   }
 
-  BaseToken(BaseFloat tot_cost, BaseFloat extra_cost, ForwardLinkT *links, Token *next):
-    tot_cost(tot_cost), extra_cost(extra_cost), links(links), next(next)
+  BaseToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *next):
+    tot_cost(tot_cost), extra_cost(extra_cost), next(next)
   {}
 };
 
@@ -181,9 +176,9 @@ struct StdToken : public BaseToken<StdToken> {
   // and LatticeFasterOnlineDecoderTpl (which needs backpointers to support a
   // fast way to obtain the best path).
   StdToken(
-    BaseFloat tot_cost, BaseFloat extra_cost, ForwardLinkT *links, Token *next, Token *backpointer
+    BaseFloat tot_cost, BaseFloat extra_cost, Token *next, Token *backpointer
   ):
-    BaseToken<StdToken>(tot_cost, extra_cost, links, next)
+    BaseToken<StdToken>(tot_cost, extra_cost, next)
   {}
 };
 
@@ -202,9 +197,9 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
   }
 
   BackpointerToken(
-    BaseFloat tot_cost, BaseFloat extra_cost, ForwardLinkT *links, Token *next, Token *backpointer
+    BaseFloat tot_cost, BaseFloat extra_cost, Token *next, Token *backpointer
   ):
-    BaseToken<BackpointerToken>(tot_cost, extra_cost, links, next),
+    BaseToken<BackpointerToken>(tot_cost, extra_cost, next),
     backpointer(backpointer)
   {}
 };
@@ -354,7 +349,7 @@ class LatticeFasterDecoderTpl {
     bool must_prune_tokens;
 
     Token *AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
-      toks = new Token(tot_cost, extra_cost, nullptr, toks, backpointer);
+      toks = new Token(tot_cost, extra_cost, toks, backpointer);
       return toks;
     }
 

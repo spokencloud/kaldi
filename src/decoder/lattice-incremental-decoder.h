@@ -617,6 +617,12 @@ class LatticeIncrementalDecoderTpl {
     int32 num_toks;  /* Note: you can only trust `num_toks` if must_prune_tokens
                       * == false, because it is only set in
                       * PruneTokensForFrame(). */
+
+    Token *AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
+      toks = new Token(tot_cost, extra_cost, toks, backpointer);
+      return toks;
+    }
+
     TokenList()
         : toks(NULL), must_prune_forward_links(true), must_prune_tokens(true),
           num_toks(-1) {}
