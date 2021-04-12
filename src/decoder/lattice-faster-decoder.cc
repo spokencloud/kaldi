@@ -255,7 +255,6 @@ LatticeFasterDecoderTpl<FST, Token>::FindOrAddToken(
   // Returns the Token pointer.  Sets "changed" (if non-NULL) to true
   // if the token was newly created or the cost changed.
   KALDI_ASSERT(frame_plus_one < active_toks_.size());
-  Token *&toks = active_toks_[frame_plus_one].toks;
   Elem *e_found = toks_.Insert(state, NULL);
   if (e_found->val == NULL) {  // no such token presently.
     const BaseFloat extra_cost = 0.0;
