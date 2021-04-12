@@ -749,8 +749,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
           // NULL: no change indicator needed
 
           // Add ForwardLink from tok to next_tok (put on head of list tok->links)
-          tok->links = new ForwardLinkT(next_tok, arc.ilabel, arc.olabel, graph_cost,
-                                        ac_cost, tok->links);
+          tok->AddForwardLink(next_tok, arc.ilabel, arc.olabel, graph_cost, ac_cost);
         }
       } // for all arcs
     }
@@ -813,8 +812,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cuto
           Token *new_tok =
               FindOrAddToken(arc.nextstate, frame + 1, tot_cost, tok, &changed);
 
-          tok->links =
-              new ForwardLinkT(new_tok, 0, arc.olabel, graph_cost, 0, tok->links);
+          tok->AddForwardLink(new_tok, 0, arc.olabel, graph_cost, 0);
 
           // "changed" tells us whether the new token has a different
           // cost from before, or is new [if so, add into queue].
