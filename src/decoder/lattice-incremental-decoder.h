@@ -446,7 +446,13 @@ namespace decoder {
   class TokenListWithCount : public TokenList<Token>
   {
   public:
-    int32 num_toks{-1};
+    int32 num_toks;
+
+    TokenListWithCount() : num_toks(-1) {}
+    TokenListWithCount(TokenListWithCount &&tl) noexcept :
+      TokenList<Token>(std::forward<TokenList<Token> &&>(tl)),
+      num_toks(tl.num_toks)
+    {}
   };
 }
 

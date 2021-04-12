@@ -136,8 +136,6 @@ struct BaseToken {
   // and compute this difference, and then take the minimum).
   BaseFloat extra_cost;
 
-  // 'links' is the head of singly-linked list of ForwardLinks, which is what we
-  // use for lattice generation.
   std::list<ForwardLinkT> forward_links;
 
   //'next' is the next in the singly-linked list of tokens for this frame.
@@ -234,6 +232,11 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
       toks(nullptr),
       must_prune_forward_links(true),
       must_prune_tokens(true)
+    {}
+    TokenList(TokenList &&tl) noexcept :
+      toks(std::exchange(tl.toks, nullptr)),
+      must_prune_forward_links(tl.must_prune_forward_links),
+      must_prune_tokens(tl.must_prune_tokens)
     {}
 
     ~TokenList() {
