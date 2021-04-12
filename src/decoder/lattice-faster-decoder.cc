@@ -803,19 +803,6 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
   return next_cutoff;
 }
 
-// static inline
-template <typename FST, typename Token>
-void LatticeFasterDecoderTpl<FST, Token>::DeleteForwardLinks(Token *tok) {
-  ForwardLinkT *l = tok->links, *m;
-  while (l != NULL) {
-    m = l->next;
-    delete l;
-    l = m;
-  }
-  tok->links = NULL;
-}
-
-
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
   KALDI_ASSERT(!active_toks_.empty());
@@ -858,8 +845,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
     // because we're about to regenerate them.  This is a kind
     // of non-optimality (remember, this is the simple decoder),
     // but since most states are emitting it's not a huge issue.
-    DeleteForwardLinks(tok); // necessary when re-visiting
-    tok->links = NULL;
+    tok->DeleteForwardLinks();
     for (fst::ArcIterator<FST> aiter(*fst_, state);
          !aiter.Done();
          aiter.Next()) {
@@ -901,7 +887,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ClearActiveTokens() { // a cleanup rou
     // Delete all tokens alive on this frame, and any forward
     // links they may have.
     for (Token *tok = active_toks_[i].toks; tok != NULL; ) {
-      DeleteForwardLinks(tok);
+      tok->DeleteForwardLinks();
       Token *next_tok = tok->next;
       delete tok;
       num_toks_--;
