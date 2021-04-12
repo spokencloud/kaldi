@@ -406,21 +406,15 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneTokensForFrame(
   KALDI_ASSERT(frame_plus_one >= 0 && frame_plus_one < active_toks_.size());
   Token *&toks = active_toks_[frame_plus_one].toks;
   if (toks == NULL) KALDI_WARN << "No tokens alive [doing pruning]";
-  Token *tok, *next_tok, *prev_tok = NULL;
+  Token *tok, *next_tok;
   int32 num_toks = 0;
   for (tok = toks; tok != NULL; tok = next_tok, num_toks++) {
     next_tok = tok->next;
     if (tok->extra_cost == std::numeric_limits<BaseFloat>::infinity()) {
       // token is unreachable from end of graph; (no forward links survived)
       // excise tok from list and delete tok.
-      if (prev_tok != NULL)
-        prev_tok->next = tok->next;
-      else
-        toks = tok->next;
-      delete tok;
+      active_toks_[frame_plus_one].DeleteToken(tok);
       num_toks_--;
-    } else { // fetch next Token
-      prev_tok = tok;
     }
   }
   active_toks_[frame_plus_one].num_toks = num_toks;
@@ -824,7 +818,7 @@ void LatticeIncrementalDecoderTpl<
     for (Token *tok = active_toks_[i].toks; tok != NULL;) {
       tok->DeleteForwardLinks();
       Token *next_tok = tok->next;
-      delete tok;
+      active_toks_[i].DeleteToken(tok);
       num_toks_--;
       tok = next_tok;
     }
