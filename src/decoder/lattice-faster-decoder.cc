@@ -466,18 +466,14 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneTokensForFrame(int32 frame_plus_o
   Token *&toks = active_toks_[frame_plus_one].toks;
   if (toks == NULL)
     KALDI_WARN << "No tokens alive [doing pruning]";
-  Token *tok, *next_tok, *prev_tok = NULL;
+  Token *tok, *next_tok;
   for (tok = toks; tok != NULL; tok = next_tok) {
     next_tok = tok->next;
     if (tok->extra_cost == std::numeric_limits<BaseFloat>::infinity()) {
       // token is unreachable from end of graph; (no forward links survived)
       // excise tok from list and delete tok.
-      if (prev_tok != NULL) prev_tok->next = tok->next;
-      else toks = tok->next;
-      delete tok;
+      active_toks_[frame_plus_one].DeleteToken(tok);
       num_toks_--;
-    } else {  // fetch next Token
-      prev_tok = tok;
     }
   }
 }
@@ -867,11 +863,11 @@ template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::ClearActiveTokens() { // a cleanup routine, at utt end/begin
   for (size_t i = 0; i < active_toks_.size(); i++) {
     // Delete all tokens alive on this frame, and any forward
-    // links they madelete y have.
+    // links they may have.
     for (Token *tok = active_toks_[i].toks; tok != NULL; ) {
       tok->DeleteForwardLinks();
       Token *next_tok = tok->next;
-      delete tok;
+      active_toks_[i].DeleteToken(tok);
       num_toks_--;
       tok = next_tok;
     }

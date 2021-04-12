@@ -441,6 +441,15 @@ class LatticeIncrementalDeterminizer {
 };
 
 
+namespace decoder {
+  template<typename Token>
+  class TokenListWithCount : public TokenList<Token>
+  {
+  public:
+    int32 num_toks{-1};
+  };
+}
+
 /** This is an extention to the "normal" lattice-generating decoder.
    See \ref lattices_generation \ref decoders_faster and \ref decoders_simple
     for more information.
@@ -610,23 +619,7 @@ class LatticeIncrementalDecoderTpl {
 
   /** NOTE: for parts the internal implementation that are shared with LatticeFasterDecoer,
       we have removed the comments.*/
-  struct TokenList {
-    Token *toks;
-    bool must_prune_forward_links;
-    bool must_prune_tokens;
-    int32 num_toks;  /* Note: you can only trust `num_toks` if must_prune_tokens
-                      * == false, because it is only set in
-                      * PruneTokensForFrame(). */
-
-    Token *AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
-      toks = new Token(tot_cost, extra_cost, toks, backpointer);
-      return toks;
-    }
-
-    TokenList()
-        : toks(NULL), must_prune_forward_links(true), must_prune_tokens(true),
-          num_toks(-1) {}
-  };
+;
   using Elem = typename HashList<StateId, Token *>::Elem;
   void PossiblyResizeHash(size_t num_toks);
   inline Token *FindOrAddToken(StateId state, int32 frame_plus_one,
@@ -645,7 +638,7 @@ class LatticeIncrementalDecoderTpl {
   void ProcessNonemitting(BaseFloat cost_cutoff);
 
   HashList<StateId, Token *> toks_;
-  std::vector<TokenList> active_toks_;  // indexed by frame.
+  std::vector<decoder::TokenListWithCount<Token>> active_toks_;  // indexed by frame.
   std::vector<StateId> queue_;       // temp variable used in ProcessNonemitting,
   std::vector<BaseFloat> tmp_array_; // used in GetCutoff.
   const FST *fst_;

@@ -204,6 +204,38 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
   {}
 };
 
+  // head of per-frame list of Tokens (list is in topological order),
+  // and something saying whether we ever pruned it using PruneForwardLinks.
+  template<typename Token>
+  struct TokenList {
+    Token *toks;
+    bool must_prune_forward_links;
+    bool must_prune_tokens;
+
+    Token *AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
+      toks = new Token(tot_cost, extra_cost, toks, backpointer);
+      return toks;
+    }
+
+    void DeleteToken(Token *tok) {
+      if (tok == toks) {
+        toks = tok->next;
+        delete tok;
+      } else {
+        Token *prev_token = toks;
+        while (prev_token->next != tok)
+          prev_token = prev_token->next;
+        prev_token->next = tok->next;
+        delete tok;
+      }
+    }
+
+    TokenList() :
+      toks(nullptr),
+      must_prune_forward_links(true),
+      must_prune_tokens(true)
+    {}
+  };
 }  // namespace decoder
 
 
@@ -341,22 +373,6 @@ class LatticeFasterDecoderTpl {
   // LatticeFasterOnlineDecoderTpl, which inherits from this, also uses the
   // internals.
 
-  // head of per-frame list of Tokens (list is in topological order),
-  // and something saying whether we ever pruned it using PruneForwardLinks.
-  struct TokenList {
-    Token *toks;
-    bool must_prune_forward_links;
-    bool must_prune_tokens;
-
-    Token *AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
-      toks = new Token(tot_cost, extra_cost, toks, backpointer);
-      return toks;
-    }
-
-    TokenList(): toks(nullptr), must_prune_forward_links(true),
-                 must_prune_tokens(true) { }
-  };
-
   using Elem = typename HashList<StateId, Token*>::Elem;
   // Equivalent to:
   //  struct Elem {
@@ -458,7 +474,7 @@ class LatticeFasterDecoderTpl {
   // the graph.
   HashList<StateId, Token*> toks_;
 
-  std::vector<TokenList> active_toks_; // Lists of tokens, indexed by
+  std::vector<decoder::TokenList<Token>> active_toks_; // Lists of tokens, indexed by
   // frame (members of TokenList are toks, must_prune_forward_links,
   // must_prune_tokens).
   std::vector<const Elem* > queue_;  // temp variable used in ProcessNonemitting,
