@@ -138,9 +138,6 @@ struct BaseToken {
 
   std::list<ForwardLinkT> forward_links;
 
-  //'next' is the next in the singly-linked list of tokens for this frame.
-  Token *next;
-
   void DeleteForwardLinks()
   {
     forward_links.clear();
@@ -156,8 +153,8 @@ struct BaseToken {
     forward_links.emplace_front(next_tok, ilabel, olabel, graph_cost, acoustic_cost);
   }
 
-  BaseToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *next):
-    tot_cost(tot_cost), extra_cost(extra_cost), next(next)
+  BaseToken(BaseFloat tot_cost, BaseFloat extra_cost):
+    tot_cost(tot_cost), extra_cost(extra_cost)
   {}
   BaseToken(BaseToken &&) noexcept = default;
 
@@ -177,9 +174,9 @@ struct StdToken : public BaseToken<StdToken> {
   // and LatticeFasterOnlineDecoderTpl (which needs backpointers to support a
   // fast way to obtain the best path).
   StdToken(
-    BaseFloat tot_cost, BaseFloat extra_cost, Token *next, Token *backpointer
+    BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer
   ):
-    BaseToken<StdToken>(tot_cost, extra_cost, next)
+    BaseToken<StdToken>(tot_cost, extra_cost)
   {}
 };
 
@@ -198,9 +195,9 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
   }
 
   BackpointerToken(
-    BaseFloat tot_cost, BaseFloat extra_cost, Token *next, Token *backpointer
+    BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer
   ):
-    BaseToken<BackpointerToken>(tot_cost, extra_cost, next),
+    BaseToken<BackpointerToken>(tot_cost, extra_cost),
     backpointer(backpointer)
   {}
 };
@@ -209,103 +206,38 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
   // and something saying whether we ever pruned it using PruneForwardLinks.
   template<typename Token>
   struct TokenList {
-    template<typename T>
-    struct Iterator
-    {
-      using iterator_category = std::input_iterator_tag;
-      using difference_type   = std::ptrdiff_t;
-      using value_type        = T;
-      using pointer           = value_type *;
-      using reference         = value_type &;
-
-      pointer ptr;
-
-      explicit Iterator(pointer ptr) : ptr(ptr) {}
-
-      reference operator*() const { return *ptr; }
-      pointer operator->() { return ptr; }
-
-      Iterator& operator++() { ptr = ptr->next; return *this; }
-      Iterator operator++(int) { Iterator tmp = *this; ++(*this); return tmp; }
-
-      friend bool operator== (const Iterator& a, const Iterator& b) { return a.ptr == b.ptr; };
-      friend bool operator!= (const Iterator& a, const Iterator& b) { return a.ptr != b.ptr; };
-    };
-
     bool must_prune_forward_links;
     bool must_prune_tokens;
 
-    Token *AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
-      toks = new Token(tot_cost, extra_cost, toks, backpointer);
-      return toks;
+    Token &AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
+      tokens.emplace_front(tot_cost, extra_cost, backpointer);
+      return tokens.front();
     }
 
-    void DeleteToken(const Iterator<Token> &token_iter) {
-      DeleteToken(&*token_iter);
-    }
-
-    void DeleteToken(Token *tok) {
-      if (tok == toks) {
-        toks = tok->next;
-        delete tok;
-      } else {
-        Token *prev_token = toks;
-        while (prev_token->next != tok)
-          prev_token = prev_token->next;
-        prev_token->next = tok->next;
-        delete tok;
-      }
+    void DeleteToken(const typename std::list<Token>::iterator &token_iter) {
+      tokens.erase(token_iter);
     }
 
     TokenList() :
       must_prune_forward_links(true),
-      must_prune_tokens(true),
-      toks(nullptr)
+      must_prune_tokens(true)
     {}
-    TokenList(TokenList &&tl) noexcept :
-      must_prune_forward_links(tl.must_prune_forward_links),
-      must_prune_tokens(tl.must_prune_tokens),
-      toks(std::exchange(tl.toks, nullptr))
-    {}
+    TokenList(TokenList &&tl) noexcept = default;
 
-    ~TokenList() {
-      while (toks) {
-        DeleteToken(toks);
-      }
-    }
+    auto begin() { return tokens.begin(); }
+    auto end()   { return tokens.end(); }
 
-    auto begin() { return Iterator<Token>(toks); }
-    auto end()   { return Iterator<Token>(nullptr); }
+    auto begin() const { return tokens.begin(); }
+    auto end() const   { return tokens.end(); }
 
-    auto begin() const { return Iterator<const Token>(toks); }
-    auto end() const   { return Iterator<const Token>(nullptr); }
+    bool empty() const { return tokens.empty(); }
+    auto size() const { return tokens.size(); }
 
-    bool empty() const { return !toks; }
-
-    int size() const {
-      int result = 0;
-      for (auto &tok_iter : *this)
-        if (&tok_iter)  // only to suppress warning about unused variable
-          result++;
-      return result;
-    }
-
-    Token &back() {
-      auto tok = toks;
-      while (tok->next)
-        tok = tok->next;
-      return *tok;
-    }
-
-    const Token &back() const {
-      auto tok = toks;
-      while (tok->next)
-        tok = tok->next;
-      return *tok;
-    }
+    auto &back() { return tokens.back(); }
+    auto &back() const { return tokens.back(); }
 
   private:
-    Token *toks;
+    std::list<Token> tokens;
   };
 }  // namespace decoder
 

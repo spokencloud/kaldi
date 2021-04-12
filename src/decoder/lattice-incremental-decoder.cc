@@ -69,9 +69,9 @@ void LatticeIncrementalDecoderTpl<FST, Token>::InitDecoding() {
   StateId start_state = fst_->Start();
   KALDI_ASSERT(start_state != fst::kNoStateId);
   active_toks_.emplace_back();
-  auto start_tok = active_toks_.back().AddToken(0.0, 0.0, nullptr);
-  toks_.Insert(start_state, start_tok);
+  auto &start_tok = active_toks_.back().AddToken(0.0, 0.0, nullptr);
   num_toks_++;
+  toks_.Insert(start_state, &start_tok);
 
   determinizer_.Init();
   num_frames_in_lattice_ = 0;
@@ -204,11 +204,11 @@ inline Token *LatticeIncrementalDecoderTpl<FST, Token>::FindOrAddToken(
     // tokens on the currently final frame have zero extra_cost
     // as any of them could end up
     // on the winning path.
-    auto new_tok = active_toks_[frame_plus_one].AddToken(tot_cost, extra_cost, backpointer);
+    auto &new_tok = active_toks_[frame_plus_one].AddToken(tot_cost, extra_cost, backpointer);
     num_toks_++;
-    toks_.Insert(state, new_tok);
+    toks_.Insert(state, &new_tok);
     if (changed) *changed = true;
-    return new_tok;
+    return &new_tok;
   } else {
     Token *tok = e_found->val;      // There is an existing Token for this state.
     if (tok->tot_cost > tot_cost) { // replace old token
