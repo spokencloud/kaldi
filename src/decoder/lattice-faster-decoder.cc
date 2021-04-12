@@ -63,8 +63,8 @@ void LatticeFasterDecoderTpl<FST, Token>::InitDecoding() {
   final_costs_.clear();
   StateId start_state = fst_->Start();
   KALDI_ASSERT(start_state != fst::kNoStateId);
-  active_toks_.resize(1);
-  auto start_tok = active_toks_[0].AddToken(0.0, 0.0, nullptr);
+  active_toks_.emplace_back();
+  auto start_tok = active_toks_.back().AddToken(0.0, 0.0, nullptr);
   toks_.Insert(start_state, start_tok);
   num_toks_++;
   ProcessNonemitting(config_.beam);
@@ -84,7 +84,7 @@ bool LatticeFasterDecoderTpl<FST, Token>::Decode(DecodableInterface *decodable) 
 
   // Returns true if we have any kind of traceback available (not necessarily
   // to the end state; query ReachedFinal() for that).
-  return !active_toks_.empty() && active_toks_.back().toks != NULL;
+  return !active_toks_.empty() && !active_toks_.back().empty();
 }
 
 
@@ -116,9 +116,9 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
     KALDI_ERR << "You cannot call FinalizeDecoding() and then call "
               << "GetRawLattice() with use_final_probs == false";
 
-  unordered_map<Token*, BaseFloat> final_costs_local;
+  unordered_map<const Token*, BaseFloat> final_costs_local;
 
-  const unordered_map<Token*, BaseFloat> &final_costs =
+  const unordered_map<const Token*, BaseFloat> &final_costs =
       (decoding_finalized_ ? final_costs_ : final_costs_local);
   if (!decoding_finalized_ && use_final_probs)
     ComputeFinalCosts(&final_costs_local, NULL, NULL);
@@ -129,16 +129,16 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
   int32 num_frames = active_toks_.size() - 1;
   KALDI_ASSERT(num_frames > 0);
   const int32 bucket_count = num_toks_/2 + 3;
-  unordered_map<Token*, StateId> tok_map(bucket_count);
+  unordered_map<const Token*, StateId> tok_map(bucket_count);
   // First create all states.
-  std::vector<Token*> token_list;
+  std::vector<const Token*> token_list;
   for (int32 f = 0; f <= num_frames; f++) {
-    if (active_toks_[f].toks == NULL) {
+    if (active_toks_[f].empty()) {
       KALDI_WARN << "GetRawLattice: no tokens active on frame " << f
                  << ": not producing lattice.\n";
       return false;
     }
-    TopSortTokens(active_toks_[f].toks, &token_list);
+    TopSortTokens(active_toks_[f], &token_list);
     for (size_t i = 0; i < token_list.size(); i++)
       if (token_list[i] != NULL)
         tok_map[token_list[i]] = ofst->AddState();
@@ -152,9 +152,9 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
                 << " max:" << tok_map.max_load_factor();
   // Now create all arcs.
   for (int32 f = 0; f <= num_frames; f++) {
-    for (Token *tok = active_toks_[f].toks; tok != NULL; tok = tok->next) {
-      StateId cur_state = tok_map[tok];
-      for (auto &l : tok->forward_links) {
+    for (auto &tok : active_toks_[f]) {
+      StateId cur_state = tok_map[&tok];
+      for (auto &l : tok.forward_links) {
         auto iter = tok_map.find(l.next_tok);
         KALDI_ASSERT(iter != tok_map.end());
         StateId nextstate = iter->second;
@@ -170,8 +170,7 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
       }
       if (f == num_frames) {
         if (use_final_probs && !final_costs.empty()) {
-          typename unordered_map<Token*, BaseFloat>::const_iterator
-              iter = final_costs.find(tok);
+          auto iter = final_costs.find(&tok);
           if (iter != final_costs.end())
             ofst->SetFinal(cur_state, LatticeWeight(iter->second, 0));
         } else {
@@ -300,7 +299,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
   *extra_costs_changed = false;
   *links_pruned = false;
   KALDI_ASSERT(frame_plus_one >= 0 && frame_plus_one < active_toks_.size());
-  if (active_toks_[frame_plus_one].toks == NULL) {  // empty list; should not happen.
+  if (active_toks_[frame_plus_one].empty()) {  // empty list; should not happen.
     if (!warned_) {
       KALDI_WARN << "No tokens alive [doing pruning].. warning first "
           "time only for each utterance\n";
@@ -313,17 +312,16 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
   bool changed = true;  // difference new minus old extra cost >= delta ?
   while (changed) {
     changed = false;
-    for (Token *tok = active_toks_[frame_plus_one].toks;
-         tok != NULL; tok = tok->next) {
+    for (auto &tok : active_toks_[frame_plus_one]) {
       // will recompute tok_extra_cost for tok.
       BaseFloat tok_extra_cost = std::numeric_limits<BaseFloat>::infinity();
       // tok_extra_cost is the best (min) of link_extra_cost of outgoing links
-      for (auto link_iter = begin(tok->forward_links); link_iter != end(tok->forward_links);) {
+      for (auto link_iter = begin(tok.forward_links); link_iter != end(tok.forward_links);) {
         // See if we need to excise this link...
         auto &link = *link_iter;
         Token *next_tok = link.next_tok;
         BaseFloat link_extra_cost = next_tok->extra_cost +
-            ((tok->tot_cost + link.acoustic_cost + link.graph_cost)
+            ((tok.tot_cost + link.acoustic_cost + link.graph_cost)
              - next_tok->tot_cost);  // difference in brackets is >= 0
         // link_exta_cost is the difference in score between the best paths
         // through link source state and through link destination state
@@ -331,7 +329,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
         auto curr_link_iter = link_iter;
         ++link_iter;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
-          tok->DeleteForwardLink(curr_link_iter);
+          tok.DeleteForwardLink(curr_link_iter);
           *links_pruned = true;
         } else {   // keep the link and update the tok_extra_cost if needed.
           if (link_extra_cost < 0.0) {  // this is just a precaution.
@@ -343,9 +341,9 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
             tok_extra_cost = link_extra_cost;
         }
       }  // for all outgoing links
-      if (fabs(tok_extra_cost - tok->extra_cost) > delta)
+      if (fabs(tok_extra_cost - tok.extra_cost) > delta)
         changed = true;   // difference new minus old is bigger than delta
-      tok->extra_cost = tok_extra_cost;
+      tok.extra_cost = tok_extra_cost;
       // will be +infinity or <= lattice_beam_.
       // infinity indicates, that no forward link survived pruning
     }  // for all Token on active_toks_[frame]
@@ -363,12 +361,10 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
   KALDI_ASSERT(!active_toks_.empty());
-  int32 frame_plus_one = active_toks_.size() - 1;
 
-  if (active_toks_[frame_plus_one].toks == NULL)  // empty list; should not happen.
+  if (active_toks_.back().empty())  // empty list; should not happen.
     KALDI_WARN << "No tokens alive at end of file";
 
-  typedef typename unordered_map<Token*, BaseFloat>::const_iterator IterType;
   ComputeFinalCosts(&final_costs_, &final_relative_cost_, &final_best_cost_);
   decoding_finalized_ = true;
   // We call DeleteElems() as a nicety, not because it's really necessary;
@@ -385,8 +381,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
   BaseFloat delta = 1.0e-05;
   while (changed) {
     changed = false;
-    for (Token *tok = active_toks_[frame_plus_one].toks;
-         tok != NULL; tok = tok->next) {
+    for (auto &tok : active_toks_.back()) {
       // will recompute tok_extra_cost.  It has a term in it that corresponds
       // to the "final-prob", so instead of initializing tok_extra_cost to infinity
       // below we set it to the difference between the (score+final_prob) of this token,
@@ -395,27 +390,27 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
       if (final_costs_.empty()) {
         final_cost = 0.0;
       } else {
-        IterType iter = final_costs_.find(tok);
+        auto iter = final_costs_.find(&tok);
         if (iter != final_costs_.end())
           final_cost = iter->second;
         else
           final_cost = std::numeric_limits<BaseFloat>::infinity();
       }
-      BaseFloat tok_extra_cost = tok->tot_cost + final_cost - final_best_cost_;
+      BaseFloat tok_extra_cost = tok.tot_cost + final_cost - final_best_cost_;
       // tok_extra_cost will be a "min" over either directly being final, or
       // being indirectly final through other links, and the loop below may
       // decrease its value:
-      for (auto link_iter = begin(tok->forward_links); link_iter != end(tok->forward_links); ) {
+      for (auto link_iter = begin(tok.forward_links); link_iter != end(tok.forward_links); ) {
         auto &link = *link_iter;
         // See if we need to excise this link...
         Token *next_tok = link.next_tok;
         BaseFloat link_extra_cost = next_tok->extra_cost +
-            ((tok->tot_cost + link.acoustic_cost + link.graph_cost)
+            ((tok.tot_cost + link.acoustic_cost + link.graph_cost)
              - next_tok->tot_cost);
         auto curr_link_iter = link_iter;
         ++link_iter;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
-          tok->DeleteForwardLink(curr_link_iter);
+          tok.DeleteForwardLink(curr_link_iter);
         } else { // keep the link and update the tok_extra_cost if needed.
           if (link_extra_cost < 0.0) { // this is just a precaution.
             if (link_extra_cost < -0.01)
@@ -434,9 +429,9 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
         tok_extra_cost = std::numeric_limits<BaseFloat>::infinity();
       // to be pruned in PruneTokensForFrame
 
-      if (!ApproxEqual(tok->extra_cost, tok_extra_cost, delta))
+      if (!ApproxEqual(tok.extra_cost, tok_extra_cost, delta))
         changed = true;
-      tok->extra_cost = tok_extra_cost; // will be +infinity or <= lattice_beam_.
+      tok.extra_cost = tok_extra_cost; // will be +infinity or <= lattice_beam_.
     }
   } // while changed
 }
@@ -462,16 +457,15 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::FinalRelativeCost() const {
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::PruneTokensForFrame(int32 frame_plus_one) {
   KALDI_ASSERT(frame_plus_one >= 0 && frame_plus_one < active_toks_.size());
-  Token *&toks = active_toks_[frame_plus_one].toks;
-  if (toks == NULL)
+  auto &frame = active_toks_[frame_plus_one];
+  if (frame.empty())
     KALDI_WARN << "No tokens alive [doing pruning]";
-  Token *tok, *next_tok;
-  for (tok = toks; tok != NULL; tok = next_tok) {
-    next_tok = tok->next;
-    if (tok->extra_cost == std::numeric_limits<BaseFloat>::infinity()) {
+  for (auto tok_iter = frame.begin(); tok_iter != frame.end();) {
+    auto current_tok_iter = tok_iter++;
+    if (current_tok_iter->extra_cost == std::numeric_limits<BaseFloat>::infinity()) {
       // token is unreachable from end of graph; (no forward links survived)
       // excise tok from list and delete tok.
-      active_toks_[frame_plus_one].DeleteToken(tok);
+      frame.DeleteToken(current_tok_iter);
       num_toks_--;
     }
   }
@@ -514,7 +508,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneActiveTokens(BaseFloat delta) {
 
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::ComputeFinalCosts(
-    unordered_map<Token*, BaseFloat> *final_costs,
+    unordered_map<const Token*, BaseFloat> *final_costs,
     BaseFloat *final_relative_cost,
     BaseFloat *final_best_cost) const {
   KALDI_ASSERT(!decoding_finalized_);
@@ -693,11 +687,11 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::GetCutoff(Elem *list_head, size_t
 template <typename FST, typename Token>
 BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
     DecodableInterface *decodable) {
-  KALDI_ASSERT(active_toks_.size() > 0);
+  KALDI_ASSERT(!active_toks_.empty());
   int32 frame = active_toks_.size() - 1; // frame is the frame-index
                                          // (zero-based) used to get likelihoods
                                          // from the decodable object.
-  active_toks_.resize(active_toks_.size() + 1);
+  active_toks_.emplace_back();
 
   Elem *final_toks = toks_.Clear(); // analogous to swapping prev_toks_ / cur_toks_
                                    // in simple-decoder.h.   Removes the Elems from
@@ -784,7 +778,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
   KALDI_ASSERT(!active_toks_.empty());
-  int32 frame = static_cast<int32>(active_toks_.size()) - 2;
+  int32 frame = active_toks_.size() - 2;
   // Note: "frame" is the time-index we just processed, or -1 if
   // we are processing the nonemitting transitions before the
   // first frame (called from InitDecoding()).
@@ -861,31 +855,28 @@ void LatticeFasterDecoderTpl<FST, Token>::DeleteElems(Elem *list) {
 // static
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::TopSortTokens(
-    Token *tok_list, std::vector<Token*> *topsorted_list) {
-  unordered_map<Token*, int32> token2pos;
-  typedef typename unordered_map<Token*, int32>::iterator IterType;
-  int32 num_toks = 0;
-  for (Token *tok = tok_list; tok != NULL; tok = tok->next)
-    num_toks++;
+    const decoder::TokenList<Token> &tok_list, std::vector<const Token*> *topsorted_list) {
+  unordered_map<const Token*, int32> token2pos;
+  int32 num_toks = tok_list.size();
   int32 cur_pos = 0;
   // We assign the tokens numbers num_toks - 1, ... , 2, 1, 0.
   // This is likely to be in closer to topological order than
   // if we had given them ascending order, because of the way
   // new tokens are put at the front of the list.
-  for (Token *tok = tok_list; tok != NULL; tok = tok->next)
-    token2pos[tok] = num_toks - ++cur_pos;
+  for (auto &tok : tok_list)
+    token2pos[&tok] = num_toks - ++cur_pos;
 
-  unordered_set<Token*> reprocess;
+  unordered_set<const Token*> reprocess;
 
-  for (IterType iter = token2pos.begin(); iter != token2pos.end(); ++iter) {
-    Token *tok = iter->first;
+  for (auto iter = token2pos.begin(); iter != token2pos.end(); ++iter) {
+    const Token *tok = iter->first;
     int32 pos = iter->second;
     for (auto &link : tok->forward_links) {
       if (link.ilabel == 0) {
         // We only need to consider epsilon links, since non-epsilon links
         // transition between frames and this function only needs to sort a list
         // of tokens from a single frame.
-        IterType following_iter = token2pos.find(link.next_tok);
+        auto following_iter = token2pos.find(link.next_tok);
         if (following_iter != token2pos.end()) { // another token on this frame,
                                                  // so must consider it.
           int32 next_pos = following_iter->second;
@@ -902,21 +893,18 @@ void LatticeFasterDecoderTpl<FST, Token>::TopSortTokens(
   }
 
   size_t max_loop = 1000000, loop_count; // max_loop is to detect epsilon cycles.
-  for (loop_count = 0;
-       !reprocess.empty() && loop_count < max_loop; ++loop_count) {
-    std::vector<Token*> reprocess_vec;
-    for (typename unordered_set<Token*>::iterator iter = reprocess.begin();
-         iter != reprocess.end(); ++iter)
+  for (loop_count = 0; !reprocess.empty() && loop_count < max_loop; ++loop_count) {
+    std::vector<const Token*> reprocess_vec;
+    for (auto iter = reprocess.begin(); iter != reprocess.end(); ++iter)
       reprocess_vec.push_back(*iter);
     reprocess.clear();
-    for (typename std::vector<Token*>::iterator iter = reprocess_vec.begin();
-         iter != reprocess_vec.end(); ++iter) {
-      Token *tok = *iter;
+    for (auto iter = reprocess_vec.begin(); iter != reprocess_vec.end(); ++iter) {
+      const Token *tok = *iter;
       int32 pos = token2pos[tok];
       // Repeat the processing we did above (for comments, see above).
       for (auto &link : tok->forward_links) {
         if (link.ilabel == 0) {
-          IterType following_iter = token2pos.find(link.next_tok);
+          auto following_iter = token2pos.find(link.next_tok);
           if (following_iter != token2pos.end()) {
             int32 next_pos = following_iter->second;
             if (next_pos < pos) {
@@ -933,7 +921,7 @@ void LatticeFasterDecoderTpl<FST, Token>::TopSortTokens(
 
   topsorted_list->clear();
   topsorted_list->resize(cur_pos, NULL);  // create a list with NULLs in between.
-  for (IterType iter = token2pos.begin(); iter != token2pos.end(); ++iter)
+  for (auto iter = token2pos.begin(); iter != token2pos.end(); ++iter)
     (*topsorted_list)[iter->second] = iter->first;
 }
 

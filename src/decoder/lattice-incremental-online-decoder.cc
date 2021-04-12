@@ -60,9 +60,9 @@ typename LatticeIncrementalOnlineDecoderTpl<FST>::BestPathIterator LatticeIncrem
   KALDI_ASSERT(this->NumFramesDecoded() > 0 &&
                "You cannot call BestPathEnd if no frames were decoded.");
 
-  unordered_map<Token*, BaseFloat> final_costs_local;
+  unordered_map<const Token*, BaseFloat> final_costs_local;
 
-  const unordered_map<Token*, BaseFloat> &final_costs =
+  const unordered_map<const Token*, BaseFloat> &final_costs =
       (this->decoding_finalized_ ? this->final_costs_ :final_costs_local);
   if (!this->decoding_finalized_ && use_final_probs)
     this->ComputeFinalCosts(&final_costs_local, NULL, NULL);
@@ -71,15 +71,13 @@ typename LatticeIncrementalOnlineDecoderTpl<FST>::BestPathIterator LatticeIncrem
   // pointer).
   BaseFloat best_cost = std::numeric_limits<BaseFloat>::infinity();
   BaseFloat best_final_cost = 0;
-  Token *best_tok = NULL;
-  for (Token *tok = this->active_toks_.back().toks;
-       tok != NULL; tok = tok->next) {
-    BaseFloat cost = tok->tot_cost, final_cost = 0.0;
+  const Token *best_tok = NULL;
+  for (auto &tok : this->active_toks_.back()) {
+    BaseFloat cost = tok.tot_cost, final_cost = 0.0;
     if (use_final_probs && !final_costs.empty()) {
       // if we are instructed to use final-probs, and any final tokens were
       // active on final frame, include the final-prob in the cost of the token.
-      typename unordered_map<Token*, BaseFloat>::const_iterator
-          iter = final_costs.find(tok);
+      auto iter = final_costs.find(&tok);
       if (iter != final_costs.end()) {
         final_cost = iter->second;
         cost += final_cost;
@@ -89,7 +87,7 @@ typename LatticeIncrementalOnlineDecoderTpl<FST>::BestPathIterator LatticeIncrem
     }
     if (cost < best_cost) {
       best_cost = cost;
-      best_tok = tok;
+      best_tok = &tok;
       best_final_cost = final_cost;
     }
   }
@@ -108,7 +106,7 @@ template <typename FST>
 typename LatticeIncrementalOnlineDecoderTpl<FST>::BestPathIterator LatticeIncrementalOnlineDecoderTpl<FST>::TraceBackBestPath(
     BestPathIterator iter, LatticeArc *oarc) const {
   KALDI_ASSERT(!iter.Done() && oarc != NULL);
-  Token *tok = static_cast<Token*>(iter.tok);
+  const Token *tok = static_cast<const Token*>(iter.tok);
   int32 cur_t = iter.frame, step_t = 0;
   if (tok->backpointer != NULL) {
     // retrieve the correct forward link(with the best link cost)

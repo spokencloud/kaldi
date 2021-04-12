@@ -632,7 +632,7 @@ class LatticeIncrementalDecoderTpl {
                                BaseFloat tot_cost, Token *backpointer, bool *changed);
   void PruneForwardLinks(int32 frame_plus_one, bool *extra_costs_changed,
                          bool *links_pruned, BaseFloat delta);
-  void ComputeFinalCosts(unordered_map<Token *, BaseFloat> *final_costs,
+  void ComputeFinalCosts(unordered_map<const Token *, BaseFloat> *final_costs,
                          BaseFloat *final_relative_cost,
                          BaseFloat *final_best_cost) const;
   void PruneForwardLinksFinal();
@@ -654,7 +654,7 @@ class LatticeIncrementalDecoderTpl {
   bool warned_;
   bool decoding_finalized_;
 
-  unordered_map<Token *, BaseFloat> final_costs_;
+  unordered_map<const Token *, BaseFloat> final_costs_;
   BaseFloat final_relative_cost_;
   BaseFloat final_best_cost_;
 
@@ -669,7 +669,7 @@ class LatticeIncrementalDecoderTpl {
 
 
   /* Just a temporary used in a function; stored here to avoid reallocation. */
-  unordered_map<Token*, StateId> temp_token_map_;
+  unordered_map<const Token*, StateId> temp_token_map_;
 
   /** num_frames_in_lattice_ is the highest `num_frames_to_include_` argument
       for any prior call to GetLattice(). */
@@ -677,10 +677,10 @@ class LatticeIncrementalDecoderTpl {
 
   // A map from Token to its token_label.  Will contain an entry for
   // each Token in active_toks_[num_frames_in_lattice_].
-  unordered_map<Token*, Label> token2label_map_;
+  unordered_map<const Token*, Label> token2label_map_;
 
   // A temporary used in a function, kept here to avoid reallocation.
-  unordered_map<Token*, Label> token2label_map_temp_;
+  unordered_map<const Token*, Label> token2label_map_temp_;
 
   // we allocate a unique id for each Token
   Label next_token_label_;
@@ -700,11 +700,6 @@ class LatticeIncrementalDecoderTpl {
   // but are also linked together on each frame by their own linked-list,
   // using the "next" pointer.  We delete them manually.
   void DeleteElems(Elem *list);
-
-  // Returns the number of active tokens on frame `frame`.  Can be used as part
-  // of a heuristic to decide which frame to determinize until, if you are not
-  // at the end of an utterance.
-  int32 GetNumToksForFrame(int32 frame);
 
   /**
      UpdateLatticeDeterminization() ensures the work of determinization is kept
