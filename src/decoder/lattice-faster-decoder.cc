@@ -48,7 +48,6 @@ LatticeFasterDecoderTpl<FST, Token>::LatticeFasterDecoderTpl(
 template <typename FST, typename Token>
 LatticeFasterDecoderTpl<FST, Token>::~LatticeFasterDecoderTpl() {
   DeleteElems(toks_.Clear());
-  ClearActiveTokens();
   if (delete_fst_) delete fst_;
 }
 
@@ -57,9 +56,9 @@ void LatticeFasterDecoderTpl<FST, Token>::InitDecoding() {
   // clean up from last time:
   DeleteElems(toks_.Clear());
   cost_offsets_.clear();
-  ClearActiveTokens();
-  warned_ = false;
+  active_toks_.clear();
   num_toks_ = 0;
+  warned_ = false;
   decoding_finalized_ = false;
   final_costs_.clear();
   StateId start_state = fst_->Start();
@@ -857,23 +856,6 @@ void LatticeFasterDecoderTpl<FST, Token>::DeleteElems(Elem *list) {
     e_tail = e->tail;
     toks_.Delete(e);
   }
-}
-
-template <typename FST, typename Token>
-void LatticeFasterDecoderTpl<FST, Token>::ClearActiveTokens() { // a cleanup routine, at utt end/begin
-  for (size_t i = 0; i < active_toks_.size(); i++) {
-    // Delete all tokens alive on this frame, and any forward
-    // links they may have.
-    for (Token *tok = active_toks_[i].toks; tok != NULL; ) {
-      tok->DeleteForwardLinks();
-      Token *next_tok = tok->next;
-      active_toks_[i].DeleteToken(tok);
-      num_toks_--;
-      tok = next_tok;
-    }
-  }
-  active_toks_.clear();
-  KALDI_ASSERT(num_toks_ == 0);
 }
 
 // static
