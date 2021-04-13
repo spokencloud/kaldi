@@ -789,7 +789,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
   // but in the baseline code, turning this vector into a set to fix this
   // problem did not improve overall speed.
 
-  KALDI_ASSERT(queue_.empty());
+  std::vector<const Elem* > queue;
 
   if (toks_.GetList() == NULL) {
     if (!warned_) {
@@ -801,12 +801,12 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
   for (const Elem *e = toks_.GetList(); e != NULL;  e = e->tail) {
     StateId state = e->key;
     if (fst_->NumInputEpsilons(state) != 0)
-      queue_.push_back(e);
+      queue.push_back(e);
   }
 
-  while (!queue_.empty()) {
-    const Elem *e = queue_.back();
-    queue_.pop_back();
+  while (!queue.empty()) {
+    const Elem *e = queue.back();
+    queue.pop_back();
 
     StateId state = e->key;
     Token *tok = e->val;  // would segfault if e is a NULL pointer but this can't happen.
@@ -836,7 +836,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
           // "changed" tells us whether the new token has a different
           // cost from before, or is new [if so, add into queue].
           if (changed && fst_->NumInputEpsilons(arc.nextstate) != 0)
-            queue_.push_back(e_new);
+            queue.push_back(e_new);
         }
       }
     } // for all arcs

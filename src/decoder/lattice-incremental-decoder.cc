@@ -729,7 +729,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cuto
   // but in the baseline code, turning this vector into a set to fix this
   // problem did not improve overall speed.
 
-  KALDI_ASSERT(queue_.empty());
+  std::vector<StateId> queue;
 
   if (toks_.GetList() == NULL) {
     if (!warned_) {
@@ -740,12 +740,12 @@ void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cuto
 
   for (const Elem *e = toks_.GetList(); e != NULL; e = e->tail) {
     StateId state = e->key;
-    if (fst_->NumInputEpsilons(state) != 0) queue_.push_back(state);
+    if (fst_->NumInputEpsilons(state) != 0) queue.push_back(state);
   }
 
-  while (!queue_.empty()) {
-    StateId state = queue_.back();
-    queue_.pop_back();
+  while (!queue.empty()) {
+    StateId state = queue.back();
+    queue.pop_back();
 
     Token *tok =
         toks_.Find(state)
@@ -773,7 +773,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cuto
           // "changed" tells us whether the new token has a different
           // cost from before, or is new [if so, add into queue].
           if (changed && fst_->NumInputEpsilons(arc.nextstate) != 0)
-            queue_.push_back(arc.nextstate);
+            queue.push_back(arc.nextstate);
         }
       }
     } // for all arcs
