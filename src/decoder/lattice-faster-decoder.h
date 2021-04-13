@@ -213,7 +213,7 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
 };
 
 template<typename Token>
-struct TokenList : private std::list<Token> {
+struct Frame : private std::list<Token> {
   bool must_prune_forward_links;
   bool must_prune_tokens;
 
@@ -231,12 +231,12 @@ struct TokenList : private std::list<Token> {
     std::list<Token>::erase(token_iter);
   }
 
-  TokenList() :
+  Frame() :
     must_prune_forward_links(true),
     must_prune_tokens(true),
     cost_offset(0)
   {}
-  TokenList(TokenList &&tl) noexcept = default;
+  Frame(Frame &&tl) noexcept = default;
 
   using std::list<Token>::begin;
   using std::list<Token>::end;
@@ -482,9 +482,7 @@ class LatticeFasterDecoderTpl {
   // the graph.
   HashList<StateId, Token*> toks_;
 
-  std::vector<decoder::TokenList<Token>> active_toks_; // Lists of tokens, indexed by
-  // frame (members of TokenList are toks, must_prune_forward_links,
-  // must_prune_tokens).
+  std::vector<decoder::Frame<Token>> active_toks_; // Lists of frames
 
   // fst_ is a pointer to the FST we are decoding from.
   const FST *fst_;
@@ -529,7 +527,7 @@ class LatticeFasterDecoderTpl {
   // cycles, which are not allowed).  Note: the output list may contain NULLs,
   // which the caller should pass over; it just happens to be more efficient for
   // the algorithm to output a list that contains NULLs.
-  static void TopSortTokens(const decoder::TokenList<Token> &tok_list,
+  static void TopSortTokens(const decoder::Frame<Token> &tok_list,
                             std::vector<const Token*> *topsorted_list);
 
   KALDI_DISALLOW_COPY_AND_ASSIGN(LatticeFasterDecoderTpl);
