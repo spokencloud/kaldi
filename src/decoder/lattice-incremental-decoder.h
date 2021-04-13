@@ -630,7 +630,6 @@ class LatticeIncrementalDecoderTpl {
   HashList<StateId, Token *> toks_;
   std::vector<decoder::TokenList<Token>> active_toks_;  // indexed by frame.
   std::vector<StateId> queue_;       // temp variable used in ProcessNonemitting,
-  std::vector<BaseFloat> tmp_array_; // used in GetCutoff.
   const FST *fst_;
   bool delete_fst_;
   std::vector<BaseFloat> cost_offsets_;
@@ -651,10 +650,6 @@ class LatticeIncrementalDecoderTpl {
       the determinize_ object.  */
   LatticeIncrementalDeterminizer determinizer_;
 
-
-  /* Just a temporary used in a function; stored here to avoid reallocation. */
-  unordered_map<const Token*, StateId> temp_token_map_;
-
   /** num_frames_in_lattice_ is the highest `num_frames_to_include_` argument
       for any prior call to GetLattice(). */
   int32 num_frames_in_lattice_;
@@ -662,9 +657,6 @@ class LatticeIncrementalDecoderTpl {
   // A map from Token to its token_label.  Will contain an entry for
   // each Token in active_toks_[num_frames_in_lattice_].
   unordered_map<const Token*, Label> token2label_map_;
-
-  // A temporary used in a function, kept here to avoid reallocation.
-  unordered_map<const Token*, Label> token2label_map_temp_;
 
   // we allocate a unique id for each Token
   Label next_token_label_;

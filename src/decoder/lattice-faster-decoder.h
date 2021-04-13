@@ -481,7 +481,6 @@ class LatticeFasterDecoderTpl {
   // frame (members of TokenList are toks, must_prune_forward_links,
   // must_prune_tokens).
   std::vector<const Elem* > queue_;  // temp variable used in ProcessNonemitting,
-  std::vector<BaseFloat> tmp_array_;  // used in GetCutoff.
 
   // fst_ is a pointer to the FST we are decoding from.
   const FST *fst_;
