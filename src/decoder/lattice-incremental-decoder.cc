@@ -578,10 +578,10 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::GetCutoff(
     if (adaptive_beam != NULL) *adaptive_beam = config_.beam;
     return best_weight + config_.beam;
   } else {
-    tmp_array_.clear();
+    std::vector<BaseFloat> tmp_array;
     for (Elem *e = list_head; e != NULL; e = e->tail, count++) {
       BaseFloat w = e->val->tot_cost;
-      tmp_array_.push_back(w);
+      tmp_array.push_back(w);
       if (w < best_weight) {
         best_weight = w;
         if (best_elem) *best_elem = e;
@@ -594,27 +594,27 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::GetCutoff(
               max_active_cutoff = std::numeric_limits<BaseFloat>::infinity();
 
     KALDI_VLOG(6) << "Number of tokens active on frame " << NumFramesDecoded()
-                  << " is " << tmp_array_.size();
+                  << " is " << tmp_array.size();
 
-    if (tmp_array_.size() > static_cast<size_t>(config_.max_active)) {
-      std::nth_element(tmp_array_.begin(), tmp_array_.begin() + config_.max_active,
-                       tmp_array_.end());
-      max_active_cutoff = tmp_array_[config_.max_active];
+    if (tmp_array.size() > static_cast<size_t>(config_.max_active)) {
+      std::nth_element(tmp_array.begin(), tmp_array.begin() + config_.max_active,
+                       tmp_array.end());
+      max_active_cutoff = tmp_array[config_.max_active];
     }
     if (max_active_cutoff < beam_cutoff) { // max_active is tighter than beam.
       if (adaptive_beam)
         *adaptive_beam = max_active_cutoff - best_weight + config_.beam_delta;
       return max_active_cutoff;
     }
-    if (tmp_array_.size() > static_cast<size_t>(config_.min_active)) {
+    if (tmp_array.size() > static_cast<size_t>(config_.min_active)) {
       if (config_.min_active == 0)
         min_active_cutoff = best_weight;
       else {
-        std::nth_element(tmp_array_.begin(), tmp_array_.begin() + config_.min_active,
-                         tmp_array_.size() > static_cast<size_t>(config_.max_active)
-                             ? tmp_array_.begin() + config_.max_active
-                             : tmp_array_.end());
-        min_active_cutoff = tmp_array_[config_.min_active];
+        std::nth_element(tmp_array.begin(), tmp_array.begin() + config_.min_active,
+                         tmp_array.size() > static_cast<size_t>(config_.max_active)
+                             ? tmp_array.begin() + config_.max_active
+                             : tmp_array.end());
+        min_active_cutoff = tmp_array[config_.min_active];
       }
     }
     if (min_active_cutoff > beam_cutoff) { // min_active is looser than beam.
@@ -839,11 +839,9 @@ const CompactLattice& LatticeIncrementalDecoderTpl<FST, Token>::GetLattice(
 
     // tok_map will map from Token* to state-id in chunk_lat.
     // The cur and prev versions alternate on different frames.
-    unordered_map<const Token*, StateId> &tok2state_map(temp_token_map_);
-    tok2state_map.clear();
+    unordered_map<const Token*, StateId> tok2state_map;
 
-    unordered_map<const Token*, Label> &next_token2label_map(token2label_map_temp_);
-    next_token2label_map.clear();
+    unordered_map<const Token*, Label> next_token2label_map;
 
     { // Deal with the last frame in the chunk, the one numbered `num_frames_to_include`.
       // (Yes, this is backwards).   We allocate token labels, and set tokens as
