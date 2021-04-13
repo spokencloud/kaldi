@@ -253,6 +253,8 @@ struct Frame : private std::list<Token> {
     cost_offset(0)
   {}
   Frame(Frame &&tl) noexcept = default;
+
+  friend bool operator ==(const Frame<Token> &f1, const Frame<Token> &f2) { return f1.number == f2.number; }
 };
 }  // namespace decoder
 
@@ -279,7 +281,7 @@ class LatticeFasterDecoderTpl {
   using Label = typename Arc::Label;
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
-  using ForwardLinkT = decoder::ForwardLink<Token>;
+  using Frame = decoder::Frame<Token>;
 
   // Instantiate this class once for each thing you have to decode.
   // This version of the constructor does not take ownership of
@@ -404,14 +406,14 @@ class LatticeFasterDecoderTpl {
   // FindOrAddToken either locates a token in hash of toks_, or if necessary
   // inserts a new, empty token (i.e. with no forward links) for the current
   // frame.  [note: it's inserted if necessary into hash toks_ and also into the
-  // list of tokens active on this frame (frames_[frame].tokens)
+  // list of tokens active on this frame.
   // The frame_plus_one argument is the acoustic frame
   // index plus one, which is used to index into the frames_ array.
   // Returns the Token pointer.  Sets "changed" (if non-NULL) to true if the
   // token was newly created or the cost changed.
   // If Token == StdToken, the 'backpointer' argument has no purpose (and will
   // hopefully be optimized out).
-  inline Elem *FindOrAddToken(StateId state, int32 frame_plus_one,
+  inline Elem *FindOrAddToken(StateId state, Frame &frame,
                               BaseFloat tot_cost, Token *backpointer,
                               bool *changed);
 
@@ -492,7 +494,7 @@ class LatticeFasterDecoderTpl {
   // the graph.
   HashList<StateId, Token*> toks_;
 
-  std::vector<decoder::Frame<Token>> frames_; // List of frames
+  std::vector<Frame> frames_; // List of frames
 
   // fst_ is a pointer to the FST we are decoding from.
   const FST *fst_;

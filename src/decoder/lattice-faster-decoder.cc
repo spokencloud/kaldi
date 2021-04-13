@@ -125,19 +125,18 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
   ofst->DeleteStates();
   // num-frames plus one (since frames are one-based, and we have
   // an extra frame for the start-state).
-  int32 num_frames = frames_.size() - 1;
-  KALDI_ASSERT(num_frames > 0);
+  KALDI_ASSERT(frames_.size() > 1);
   const int32 bucket_count = num_toks_/2 + 3;
   unordered_map<const Token*, StateId> tok_map(bucket_count);
   // First create all states.
   std::vector<const Token*> token_list;
-  for (int32 f = 0; f <= num_frames; f++) {
-    if (frames_[f].tokens.empty()) {
-      KALDI_WARN << "GetRawLattice: no tokens active on frame " << f
+  for (auto &frame : frames_) {
+    if (frame.tokens.empty()) {
+      KALDI_WARN << "GetRawLattice: no tokens active on frame " << frame.number
                  << ": not producing lattice.\n";
       return false;
     }
-    TopSortTokens(frames_[f].tokens, &token_list);
+    TopSortTokens(frame.tokens, &token_list);
     for (size_t i = 0; i < token_list.size(); i++)
       if (token_list[i] != NULL)
         tok_map[token_list[i]] = ofst->AddState();
@@ -150,8 +149,8 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
                 << tok_map.bucket_count() << " load:" << tok_map.load_factor()
                 << " max:" << tok_map.max_load_factor();
   // Now create all arcs.
-  for (int32 f = 0; f <= num_frames; f++) {
-    for (auto &tok : frames_[f].tokens) {
+  for (auto &frame : frames_) {
+    for (auto &tok : frame.tokens) {
       StateId cur_state = tok_map[&tok];
       for (auto &l : tok.forward_links) {
         auto iter = tok_map.find(l.next_tok);
@@ -159,14 +158,14 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
         StateId nextstate = iter->second;
         BaseFloat cost_offset = 0.0;
         if (l.ilabel != 0) {  // emitting..
-          cost_offset = frames_[f].cost_offset;
+          cost_offset = frame.cost_offset;
         }
         Arc arc(l.ilabel, l.olabel,
                 Weight(l.graph_cost, l.acoustic_cost - cost_offset),
                 nextstate);
         ofst->AddArc(cur_state, arc);
       }
-      if (f == num_frames) {
+      if (frame == frames_.back()) {
         if (use_final_probs && !final_costs.empty()) {
           auto iter = final_costs.find(&tok);
           if (iter != final_costs.end())
@@ -238,22 +237,21 @@ void LatticeFasterDecoderTpl<FST, Token>::PossiblyResizeHash(size_t num_toks) {
 // FindOrAddToken either locates a token in hash of toks_,
 // or if necessary inserts a new, empty token (i.e. with no forward links)
 // for the current frame.  [note: it's inserted if necessary into hash toks_
-// and also into the list of tokens active on this frame (frames_[frame].tokens).
+// and also into the list of tokens active on this frame (frame.tokens).
 template <typename FST, typename Token>
 inline typename LatticeFasterDecoderTpl<FST, Token>::Elem*
 LatticeFasterDecoderTpl<FST, Token>::FindOrAddToken(
-      StateId state, int32 frame_plus_one, BaseFloat tot_cost,
+      StateId state, Frame &frame, BaseFloat tot_cost,
       Token *backpointer, bool *changed) {
   // Returns the Token pointer.  Sets "changed" (if non-NULL) to true
   // if the token was newly created or the cost changed.
-  KALDI_ASSERT(frame_plus_one < frames_.size());
   Elem *e_found = toks_.Insert(state, NULL);
   if (e_found->val == NULL) {  // no such token presently.
     const BaseFloat extra_cost = 0.0;
     // tokens on the currently final frame have zero extra_cost
     // as any of them could end up
     // on the winning path.
-    auto &new_tok = frames_[frame_plus_one].tokens.Add(tot_cost, extra_cost, backpointer);
+    auto &new_tok = frame.tokens.Add(tot_cost, extra_cost, backpointer);
     num_toks_++;
     e_found->val = &new_tok;
     if (changed) *changed = true;
@@ -323,8 +321,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
         // link_exta_cost is the difference in score between the best paths
         // through link source state and through link destination state
         KALDI_ASSERT(link_extra_cost == link_extra_cost);  // check for NaN
-        auto curr_link_iter = link_iter;
-        ++link_iter;
+        auto curr_link_iter = link_iter++;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
           tok.forward_links.Delete(curr_link_iter);
           *links_pruned = true;
@@ -404,8 +401,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
         BaseFloat link_extra_cost = next_tok->extra_cost +
             ((tok.tot_cost + link.acoustic_cost + link.graph_cost)
              - next_tok->tot_cost);
-        auto curr_link_iter = link_iter;
-        ++link_iter;
+        auto curr_link_iter = link_iter++;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
           tok.forward_links.Delete(curr_link_iter);
         } else { // keep the link and update the tok_extra_cost if needed.
@@ -685,9 +681,7 @@ template <typename FST, typename Token>
 BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
     DecodableInterface *decodable) {
   KALDI_ASSERT(!frames_.empty());
-  int32 frame = frames_.size() - 1; // frame is the frame-index
-                                         // (zero-based) used to get likelihoods
-                                         // from the decodable object.
+  auto &last_frame = frames_.back();
   frames_.emplace_back(frames_.size());
 
   Elem *final_toks = toks_.Clear(); // analogous to swapping prev_toks_ / cur_toks_
@@ -722,7 +716,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
       const Arc &arc = aiter.Value();
       if (arc.ilabel != 0) {  // propagate..
         BaseFloat new_weight = arc.weight.Value() + cost_offset -
-            decodable->LogLikelihood(frame, arc.ilabel) + tok->tot_cost;
+            decodable->LogLikelihood(last_frame.number, arc.ilabel) + tok->tot_cost;
         if (new_weight + adaptive_beam < next_cutoff)
           next_cutoff = new_weight + adaptive_beam;
       }
@@ -730,7 +724,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
   }
 
   // Store the offset on the acoustic likelihoods that we're applying.
-  frames_[frame].cost_offset = cost_offset;
+  last_frame.cost_offset = cost_offset;
 
   // the tokens are now owned here, in final_toks, and the hash is empty.
   // 'owned' is a complex thing here; the point is we need to call DeleteElem
@@ -746,7 +740,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
         const Arc &arc = aiter.Value();
         if (arc.ilabel != 0) {  // propagate..
           BaseFloat ac_cost = cost_offset -
-              decodable->LogLikelihood(frame, arc.ilabel),
+              decodable->LogLikelihood(last_frame.number, arc.ilabel),
               graph_cost = arc.weight.Value(),
               cur_cost = tok->tot_cost,
               tot_cost = cur_cost + ac_cost + graph_cost;
@@ -756,7 +750,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
           // Note: the frame indexes into frames_ are one-based,
           // hence the + 1.
           Elem *e_next = FindOrAddToken(arc.nextstate,
-                                        frame + 1, tot_cost, tok, NULL);
+                                        frames_.back(), tot_cost, tok, NULL);
           // NULL: no change indicator needed
 
           tok->forward_links.Add(e_next->val, arc.ilabel, arc.olabel, graph_cost, ac_cost);
@@ -822,7 +816,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
         if (tot_cost < cutoff) {
           bool changed;
 
-          Elem *e_new = FindOrAddToken(arc.nextstate, frame + 1, tot_cost,
+          Elem *e_new = FindOrAddToken(arc.nextstate, frames_.back(), tot_cost,
                                           tok, &changed);
 
           tok->forward_links.Add(e_new->val, 0, arc.olabel, graph_cost, 0);

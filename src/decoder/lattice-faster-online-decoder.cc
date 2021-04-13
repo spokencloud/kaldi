@@ -191,13 +191,10 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
     this->ComputeFinalCosts(&final_costs_local, NULL, NULL);
 
   ofst->DeleteStates();
-  // num-frames plus one (since frames are one-based, and we have
-  // an extra frame for the start-state).
-  int32 num_frames = this->frames_.size() - 1;
-  KALDI_ASSERT(num_frames > 0);
-  for (int32 f = 0; f <= num_frames; f++) {
-    if (this->frames_[f].tokens.empty()) {
-      KALDI_WARN << "No tokens active on frame " << f
+  KALDI_ASSERT(this->frames_.size() > 1);
+  for (auto &frame : this->frames_) {
+    if (frame.tokens.empty()) {
+      KALDI_WARN << "No tokens active on frame " << frame.number
                  << ": not producing lattice.\n";
       return false;
     }
@@ -218,7 +215,7 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
     const Token *cur_tok = cur_tok_pair.first;
     int32 cur_frame = cur_tok_pair.second;
     KALDI_ASSERT(cur_frame >= 0 &&
-                 cur_frame <= this->frames_.size());
+                 cur_frame < this->frames_.size());
 
     auto iter = tok_map.find(cur_tok);
     KALDI_ASSERT(iter != tok_map.end());
@@ -244,7 +241,7 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
         ofst->AddArc(cur_state, arc);
       }
     }
-    if (cur_frame == num_frames) {
+    if (this->frames_[cur_frame] == this->frames_.back()) {
       if (use_final_probs && !final_costs.empty()) {
         auto iter = final_costs.find(cur_tok);
         if (iter != final_costs.end())

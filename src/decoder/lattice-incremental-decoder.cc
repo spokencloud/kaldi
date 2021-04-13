@@ -106,8 +106,8 @@ void LatticeIncrementalDecoderTpl<FST, Token>::UpdateLatticeDeterminization() {
      best_frame. */
   bool use_final_probs = false;
   GetLattice(best_frame, use_final_probs);
-  return;
 }
+
 // Returns true if any kind of traceback is available (not necessarily from
 // a final state).  It should only very rarely return false; this indicates
 // an unusual search error.
@@ -185,21 +185,20 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PossiblyResizeHash(size_t num_tok
 // FindOrAddToken either locates a token in hash of toks_,
 // or if necessary inserts a new, empty token (i.e. with no forward links)
 // for the current frame.  [note: it's inserted if necessary into hash toks_
-// and also into the list of tokens active on this frame (frames_[frame].tokens).
+// and also into the list of tokens active on this frame (frame.tokens).
 template <typename FST, typename Token>
 inline Token *LatticeIncrementalDecoderTpl<FST, Token>::FindOrAddToken(
-    StateId state, int32 frame_plus_one, BaseFloat tot_cost, Token *backpointer,
+    StateId state, Frame &frame, BaseFloat tot_cost, Token *backpointer,
     bool *changed) {
   // Returns the Token pointer.  Sets "changed" (if non-NULL) to true
   // if the token was newly created or the cost changed.
-  KALDI_ASSERT(frame_plus_one < frames_.size());
   Elem *e_found = toks_.Find(state);
   if (e_found == NULL) { // no such token presently.
     const BaseFloat extra_cost = 0.0;
     // tokens on the currently final frame have zero extra_cost
     // as any of them could end up
     // on the winning path.
-    auto &new_tok = frames_[frame_plus_one].tokens.Add(tot_cost, extra_cost, backpointer);
+    auto &new_tok = frame.tokens.Add(tot_cost, extra_cost, backpointer);
     num_toks_++;
     toks_.Insert(state, &new_tok);
     if (changed) *changed = true;
@@ -630,9 +629,7 @@ template <typename FST, typename Token>
 BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
     DecodableInterface *decodable) {
   KALDI_ASSERT(!frames_.empty());
-  int32 frame = frames_.size() - 1; // frame is the frame-index
-                                         // (zero-based) used to get likelihoods
-                                         // from the decodable object.
+  auto &last_frame = frames_.back();
   frames_.emplace_back(frames_.size());
 
   Elem *final_toks = toks_.Clear(); // analogous to swapping prev_toks_ / cur_toks_
@@ -664,7 +661,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
       const Arc &arc = aiter.Value();
       if (arc.ilabel != 0) { // propagate..
         BaseFloat new_weight = arc.weight.Value() + cost_offset -
-                               decodable->LogLikelihood(frame, arc.ilabel) +
+                               decodable->LogLikelihood(last_frame.number, arc.ilabel) +
                                tok->tot_cost;
         if (new_weight + adaptive_beam < next_cutoff)
           next_cutoff = new_weight + adaptive_beam;
@@ -673,7 +670,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
   }
 
   // Store the offset on the acoustic likelihoods that we're applying.
-  frames_[frame].cost_offset = cost_offset;
+  last_frame.cost_offset = cost_offset;
 
   // the tokens are now owned here, in final_toks, and the hash is empty.
   // 'owned' is a complex thing here; the point is we need to call DeleteElem
@@ -687,7 +684,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
         const Arc &arc = aiter.Value();
         if (arc.ilabel != 0) { // propagate..
           BaseFloat ac_cost =
-                        cost_offset - decodable->LogLikelihood(frame, arc.ilabel),
+                        cost_offset - decodable->LogLikelihood(last_frame.number, arc.ilabel),
                     graph_cost = arc.weight.Value(), cur_cost = tok->tot_cost,
                     tot_cost = cur_cost + ac_cost + graph_cost;
           if (tot_cost >= next_cutoff)
@@ -697,7 +694,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
           // Note: the frame indexes into frames_ are one-based,
           // hence the + 1.
           Token *next_tok =
-              FindOrAddToken(arc.nextstate, frame + 1, tot_cost, tok, NULL);
+              FindOrAddToken(arc.nextstate, frames_.back(), tot_cost, tok, NULL);
           // NULL: no change indicator needed
 
           tok->forward_links.Add(next_tok, arc.ilabel, arc.olabel, graph_cost, ac_cost);
@@ -713,7 +710,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
 template <typename FST, typename Token>
 void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
   KALDI_ASSERT(!frames_.empty());
-  int32 frame = static_cast<int32>(frames_.size()) - 2;
+  int32 frame = frames_.size() - 2;
   // Note: "frame" is the time-index we just processed, or -1 if
   // we are processing the nonemitting transitions before the
   // first frame (called from InitDecoding()).
@@ -761,7 +758,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cuto
           bool changed;
 
           Token *new_tok =
-              FindOrAddToken(arc.nextstate, frame + 1, tot_cost, tok, &changed);
+              FindOrAddToken(arc.nextstate, frames_.back(), tot_cost, tok, &changed);
 
           tok->forward_links.Add(new_tok, 0, arc.olabel, graph_cost, 0);
 
