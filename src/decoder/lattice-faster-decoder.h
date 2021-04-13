@@ -117,6 +117,31 @@ struct ForwardLink {
 };
 
 template<typename Token>
+class ForwardLinkList : private std::list<ForwardLink<Token>> {
+  using Link = ForwardLink<Token>;
+  using List = std::list<Link>;
+
+public:
+  void DeleteAll()
+  {
+    List::clear();
+  }
+
+  void Delete(typename List::iterator link_iter) {
+    List::erase(link_iter);
+  }
+
+  void Add(
+    Token *next_tok, fst::StdArc::Label ilabel, fst::StdArc::Label olabel,
+    BaseFloat graph_cost, BaseFloat acoustic_cost) {
+    List::emplace_front(next_tok, ilabel, olabel, graph_cost, acoustic_cost);
+  }
+
+  using List::begin;
+  using List::end;
+};
+
+template<typename Token>
 struct BaseToken {
   using ForwardLinkT = ForwardLink<Token>;
 
@@ -136,22 +161,7 @@ struct BaseToken {
   // and compute this difference, and then take the minimum).
   BaseFloat extra_cost;
 
-  std::list<ForwardLinkT> forward_links;
-
-  void DeleteForwardLinks()
-  {
-    forward_links.clear();
-  }
-
-  void DeleteForwardLink(typename std::list<ForwardLinkT>::iterator link_iter) {
-    forward_links.erase(link_iter);
-  }
-
-  void AddForwardLink(
-    Token *next_tok, fst::StdArc::Label ilabel, fst::StdArc::Label olabel,
-    BaseFloat graph_cost, BaseFloat acoustic_cost) {
-    forward_links.emplace_front(next_tok, ilabel, olabel, graph_cost, acoustic_cost);
-  }
+  ForwardLinkList<Token> forward_links;
 
   BaseToken(BaseFloat tot_cost, BaseFloat extra_cost):
     tot_cost(tot_cost), extra_cost(extra_cost)

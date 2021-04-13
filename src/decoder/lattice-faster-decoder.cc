@@ -327,7 +327,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
         auto curr_link_iter = link_iter;
         ++link_iter;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
-          tok.DeleteForwardLink(curr_link_iter);
+          tok.forward_links.Delete(curr_link_iter);
           *links_pruned = true;
         } else {   // keep the link and update the tok_extra_cost if needed.
           if (link_extra_cost < 0.0) {  // this is just a precaution.
@@ -408,7 +408,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
         auto curr_link_iter = link_iter;
         ++link_iter;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
-          tok.DeleteForwardLink(curr_link_iter);
+          tok.forward_links.Delete(curr_link_iter);
         } else { // keep the link and update the tok_extra_cost if needed.
           if (link_extra_cost < 0.0) { // this is just a precaution.
             if (link_extra_cost < -0.01)
@@ -760,7 +760,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
                                         frame + 1, tot_cost, tok, NULL);
           // NULL: no change indicator needed
 
-          tok->AddForwardLink(e_next->val, arc.ilabel, arc.olabel, graph_cost, ac_cost);
+          tok->forward_links.Add(e_next->val, arc.ilabel, arc.olabel, graph_cost, ac_cost);
         }
       } // for all arcs
     }
@@ -812,7 +812,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
     // because we're about to regenerate them.  This is a kind
     // of non-optimality (remember, this is the simple decoder),
     // but since most states are emitting it's not a huge issue.
-    tok->DeleteForwardLinks();
+    tok->forward_links.DeleteAll();
     for (fst::ArcIterator<FST> aiter(*fst_, state);
          !aiter.Done();
          aiter.Next()) {
@@ -826,7 +826,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
           Elem *e_new = FindOrAddToken(arc.nextstate, frame + 1, tot_cost,
                                           tok, &changed);
 
-          tok->AddForwardLink(e_new->val, 0, arc.olabel, graph_cost, 0);
+          tok->forward_links.Add(e_new->val, 0, arc.olabel, graph_cost, 0);
 
           // "changed" tells us whether the new token has a different
           // cost from before, or is new [if so, add into queue].
