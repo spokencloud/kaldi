@@ -542,7 +542,7 @@ class OnlineSilenceWeighting {
   struct FrameInfo {
     // The only reason we need the token pointer is to know far back we have to
     // trace before the traceback is the same as what we previously traced back.
-    void *token;
+    const void *token;
     int32 transition_id;
     // current_weight is the weight we've previously told the iVector
     // extractor to use for this frame, if any.  It may not equal the

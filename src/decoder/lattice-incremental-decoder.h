@@ -440,7 +440,6 @@ class LatticeIncrementalDeterminizer {
   KALDI_DISALLOW_COPY_AND_ASSIGN(LatticeIncrementalDeterminizer);
 };
 
-
 /** This is an extention to the "normal" lattice-generating decoder.
    See \ref lattices_generation \ref decoders_faster and \ref decoders_simple
     for more information.
@@ -468,7 +467,7 @@ class LatticeIncrementalDecoderTpl {
   using Label = typename Arc::Label;
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
-  using ForwardLinkT = decoder::ForwardLink<Token>;
+  using Frame = decoder::Frame<Token>;
 
   // Instantiate this class once for each thing you have to decode.
   // This version of the constructor does not take ownership of
@@ -597,7 +596,7 @@ class LatticeIncrementalDecoderTpl {
   BaseFloat FinalRelativeCost() const;
 
   /** Returns the number of frames decoded so far. */
-  inline int32 NumFramesDecoded() const { return active_toks_.size() - 1; }
+  inline int32 NumFramesDecoded() const { return frames_.size() - 1; }
 
   /**
      Finalizes the decoding, doing an extra pruning step on the last frame
@@ -610,25 +609,14 @@ class LatticeIncrementalDecoderTpl {
 
   /** NOTE: for parts the internal implementation that are shared with LatticeFasterDecoer,
       we have removed the comments.*/
-  inline static void DeleteForwardLinks(Token *tok);
-  struct TokenList {
-    Token *toks;
-    bool must_prune_forward_links;
-    bool must_prune_tokens;
-    int32 num_toks;  /* Note: you can only trust `num_toks` if must_prune_tokens
-                      * == false, because it is only set in
-                      * PruneTokensForFrame(). */
-    TokenList()
-        : toks(NULL), must_prune_forward_links(true), must_prune_tokens(true),
-          num_toks(-1) {}
-  };
+;
   using Elem = typename HashList<StateId, Token *>::Elem;
   void PossiblyResizeHash(size_t num_toks);
-  inline Token *FindOrAddToken(StateId state, int32 frame_plus_one,
+  inline Token *FindOrAddToken(StateId state, Frame &frame,
                                BaseFloat tot_cost, Token *backpointer, bool *changed);
   void PruneForwardLinks(int32 frame_plus_one, bool *extra_costs_changed,
                          bool *links_pruned, BaseFloat delta);
-  void ComputeFinalCosts(unordered_map<Token *, BaseFloat> *final_costs,
+  void ComputeFinalCosts(unordered_map<const Token *, BaseFloat> *final_costs,
                          BaseFloat *final_relative_cost,
                          BaseFloat *final_best_cost) const;
   void PruneForwardLinksFinal();
@@ -640,17 +628,13 @@ class LatticeIncrementalDecoderTpl {
   void ProcessNonemitting(BaseFloat cost_cutoff);
 
   HashList<StateId, Token *> toks_;
-  std::vector<TokenList> active_toks_;  // indexed by frame.
-  std::vector<StateId> queue_;       // temp variable used in ProcessNonemitting,
-  std::vector<BaseFloat> tmp_array_; // used in GetCutoff.
+  decoder::FrameList<Token> frames_;
   const FST *fst_;
   bool delete_fst_;
-  std::vector<BaseFloat> cost_offsets_;
-  int32 num_toks_;
   bool warned_;
   bool decoding_finalized_;
 
-  unordered_map<Token *, BaseFloat> final_costs_;
+  unordered_map<const Token *, BaseFloat> final_costs_;
   BaseFloat final_relative_cost_;
   BaseFloat final_best_cost_;
 
@@ -663,20 +647,13 @@ class LatticeIncrementalDecoderTpl {
       the determinize_ object.  */
   LatticeIncrementalDeterminizer determinizer_;
 
-
-  /* Just a temporary used in a function; stored here to avoid reallocation. */
-  unordered_map<Token*, StateId> temp_token_map_;
-
   /** num_frames_in_lattice_ is the highest `num_frames_to_include_` argument
       for any prior call to GetLattice(). */
   int32 num_frames_in_lattice_;
 
   // A map from Token to its token_label.  Will contain an entry for
-  // each Token in active_toks_[num_frames_in_lattice_].
-  unordered_map<Token*, Label> token2label_map_;
-
-  // A temporary used in a function, kept here to avoid reallocation.
-  unordered_map<Token*, Label> token2label_map_temp_;
+  // each Token in frames_[num_frames_in_lattice_].tokens.
+  unordered_map<const Token*, Label> token2label_map_;
 
   // we allocate a unique id for each Token
   Label next_token_label_;
@@ -696,14 +673,6 @@ class LatticeIncrementalDecoderTpl {
   // but are also linked together on each frame by their own linked-list,
   // using the "next" pointer.  We delete them manually.
   void DeleteElems(Elem *list);
-
-  void ClearActiveTokens();
-
-
-  // Returns the number of active tokens on frame `frame`.  Can be used as part
-  // of a heuristic to decide which frame to determinize until, if you are not
-  // at the end of an utterance.
-  int32 GetNumToksForFrame(int32 frame);
 
   /**
      UpdateLatticeDeterminization() ensures the work of determinization is kept
