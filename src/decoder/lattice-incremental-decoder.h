@@ -631,7 +631,6 @@ class LatticeIncrementalDecoderTpl {
   std::vector<decoder::TokenList<Token>> active_toks_;  // indexed by frame.
   const FST *fst_;
   bool delete_fst_;
-  std::vector<BaseFloat> cost_offsets_;
   int32 num_toks_;
   bool warned_;
   bool decoding_finalized_;

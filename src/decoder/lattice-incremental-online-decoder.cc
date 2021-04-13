@@ -120,8 +120,8 @@ typename LatticeIncrementalOnlineDecoderTpl<FST>::BestPathIterator LatticeIncrem
           oarc->ilabel = link.ilabel;
           oarc->olabel = link.olabel;
           if (link.ilabel != 0) {
-            KALDI_ASSERT(static_cast<size_t>(cur_t) < this->cost_offsets_.size());
-            acoustic_cost -= this->cost_offsets_[cur_t];
+            KALDI_ASSERT(static_cast<size_t>(cur_t) < this->active_toks_.size());
+            acoustic_cost -= this->active_toks_[cur_t].cost_offset;
             step_t = -1;
           } else {
             step_t = 0;
