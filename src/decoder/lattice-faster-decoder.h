@@ -217,13 +217,19 @@ class TokenList : private std::list<Token> {
   using List = std::list<Token>;
 
 public:
+  explicit TokenList(int &token_counter) :
+    token_counter_(token_counter)
+  {}
+
   Token &Add(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
     List::emplace_front(tot_cost, extra_cost, backpointer);
+    ++token_counter_;
     return List::front();
   }
 
   void Delete(const typename std::list<Token>::iterator &token_iter) {
     List::erase(token_iter);
+    --token_counter_;
   }
 
   using List::begin;
@@ -231,6 +237,9 @@ public:
   using List::empty;
   using List::size;
   using List::back;
+
+private:
+  int &token_counter_;
 };
 
 template<typename Token>
@@ -246,11 +255,12 @@ struct Frame : private std::list<Token> {
 
   TokenList<Token> tokens;
 
-  Frame(int number) :
+  Frame(int number, int &token_counter) :
     number(number),
     must_prune_forward_links(true),
     must_prune_tokens(true),
-    cost_offset(0)
+    cost_offset(0),
+    tokens(token_counter)
   {}
   Frame(Frame &&tl) noexcept = default;
 
@@ -263,12 +273,15 @@ class FrameList : private std::vector<Frame<Token>> {
 
 public:
   void Add() {
-    List::emplace_back(List::size());
+    List::emplace_back(List::size(), token_count);
   }
 
   void DeleteAll() {
     List::clear();
+    token_count = 0;
   }
+
+  int token_count{0};
 
   using List::begin;
   using List::end;
@@ -525,7 +538,6 @@ class LatticeFasterDecoderTpl {
   bool delete_fst_;
 
   LatticeFasterDecoderConfig config_;
-  int32 num_toks_; // current total #toks allocated...
   bool warned_;
 
   /// decoding_finalized_ is true if someone called FinalizeDecoding().  [note,

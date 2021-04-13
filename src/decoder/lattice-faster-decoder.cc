@@ -30,7 +30,7 @@ template <typename FST, typename Token>
 LatticeFasterDecoderTpl<FST, Token>::LatticeFasterDecoderTpl(
     const FST &fst,
     const LatticeFasterDecoderConfig &config):
-    fst_(&fst), delete_fst_(false), config_(config), num_toks_(0) {
+    fst_(&fst), delete_fst_(false), config_(config) {
   config.Check();
   toks_.SetSize(1000);  // just so on the first frame we do something reasonable.
 }
@@ -39,7 +39,7 @@ LatticeFasterDecoderTpl<FST, Token>::LatticeFasterDecoderTpl(
 template <typename FST, typename Token>
 LatticeFasterDecoderTpl<FST, Token>::LatticeFasterDecoderTpl(
     const LatticeFasterDecoderConfig &config, FST *fst):
-    fst_(fst), delete_fst_(true), config_(config), num_toks_(0) {
+    fst_(fst), delete_fst_(true), config_(config) {
   config.Check();
   toks_.SetSize(1000);  // just so on the first frame we do something reasonable.
 }
@@ -56,7 +56,6 @@ void LatticeFasterDecoderTpl<FST, Token>::InitDecoding() {
   // clean up from last time:
   DeleteElems(toks_.Clear());
   frames_.DeleteAll();
-  num_toks_ = 0;
   warned_ = false;
   decoding_finalized_ = false;
   final_costs_.clear();
@@ -64,7 +63,6 @@ void LatticeFasterDecoderTpl<FST, Token>::InitDecoding() {
   KALDI_ASSERT(start_state != fst::kNoStateId);
   frames_.Add();
   auto &start_tok = frames_.back().tokens.Add(0.0, 0.0, nullptr);
-  num_toks_++;
   toks_.Insert(start_state, &start_tok);
   ProcessNonemitting(config_.beam);
 }
@@ -126,7 +124,7 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
   // num-frames plus one (since frames are one-based, and we have
   // an extra frame for the start-state).
   KALDI_ASSERT(frames_.size() > 1);
-  const int32 bucket_count = num_toks_/2 + 3;
+  const int32 bucket_count = frames_.token_count / 2 + 3;
   unordered_map<const Token*, StateId> tok_map(bucket_count);
   // First create all states.
   std::vector<const Token*> token_list;
@@ -145,7 +143,7 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
   // topologically sorted the tokens, state zero must be the start-state.
   ofst->SetStart(0);
 
-  KALDI_VLOG(4) << "init:" << num_toks_/2 + 3 << " buckets:"
+  KALDI_VLOG(4) << "init:" << frames_.token_count / 2 + 3 << " buckets:"
                 << tok_map.bucket_count() << " load:" << tok_map.load_factor()
                 << " max:" << tok_map.max_load_factor();
   // Now create all arcs.
@@ -252,7 +250,6 @@ LatticeFasterDecoderTpl<FST, Token>::FindOrAddToken(
     // as any of them could end up
     // on the winning path.
     auto &new_tok = frame.tokens.Add(tot_cost, extra_cost, backpointer);
-    num_toks_++;
     e_found->val = &new_tok;
     if (changed) *changed = true;
     return e_found;
@@ -459,7 +456,6 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneTokensForFrame(int32 frame_plus_o
       // token is unreachable from end of graph; (no forward links survived)
       // excise tok from list and delete tok.
       frame.tokens.Delete(current_tok_iter);
-      num_toks_--;
     }
   }
 }
@@ -472,7 +468,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneTokensForFrame(int32 frame_plus_o
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::PruneActiveTokens(BaseFloat delta) {
   int32 cur_frame_plus_one = NumFramesDecoded();
-  int32 num_toks_begin = num_toks_;
+  int32 num_toks_begin = frames_.token_count;
   // The index "f" below represents a "frame plus one", i.e. you'd have to subtract
   // one to get the corresponding index for the decodable object.
   for (int32 f = cur_frame_plus_one - 1; f >= 0; f--) {
@@ -496,7 +492,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneActiveTokens(BaseFloat delta) {
     }
   }
   KALDI_VLOG(4) << "PruneActiveTokens: pruned tokens from " << num_toks_begin
-                << " to " << num_toks_;
+                << " to " << frames_.token_count;
 }
 
 template <typename FST, typename Token>
@@ -591,7 +587,7 @@ void LatticeFasterDecoderTpl<FST, Token>::AdvanceDecoding(DecodableInterface *de
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::FinalizeDecoding() {
   int32 final_frame_plus_one = NumFramesDecoded();
-  int32 num_toks_begin = num_toks_;
+  int32 num_toks_begin = frames_.token_count;
   // PruneForwardLinksFinal() prunes final frame (with final-probs), and
   // sets decoding_finalized_.
   PruneForwardLinksFinal();
@@ -603,7 +599,7 @@ void LatticeFasterDecoderTpl<FST, Token>::FinalizeDecoding() {
   }
   PruneTokensForFrame(0);
   KALDI_VLOG(4) << "pruned tokens from " << num_toks_begin
-                << " to " << num_toks_;
+                << " to " << frames_.token_count;
 }
 
 /// Gets the weight cutoff.  Also counts the active tokens.

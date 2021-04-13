@@ -631,7 +631,6 @@ class LatticeIncrementalDecoderTpl {
   decoder::FrameList<Token> frames_;
   const FST *fst_;
   bool delete_fst_;
-  int32 num_toks_;
   bool warned_;
   bool decoding_finalized_;
 

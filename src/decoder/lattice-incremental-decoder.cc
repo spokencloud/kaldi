@@ -30,7 +30,6 @@ LatticeIncrementalDecoderTpl<FST, Token>::LatticeIncrementalDecoderTpl(
     const LatticeIncrementalDecoderConfig &config)
     : fst_(&fst),
       delete_fst_(false),
-      num_toks_(0),
       config_(config),
       determinizer_(trans_model, config) {
   config.Check();
@@ -43,7 +42,6 @@ LatticeIncrementalDecoderTpl<FST, Token>::LatticeIncrementalDecoderTpl(
     const TransitionModel &trans_model)
     : fst_(fst),
       delete_fst_(true),
-      num_toks_(0),
       config_(config),
       determinizer_(trans_model, config) {
   config.Check();
@@ -61,7 +59,6 @@ void LatticeIncrementalDecoderTpl<FST, Token>::InitDecoding() {
   // clean up from last time:
   DeleteElems(toks_.Clear());
   frames_.DeleteAll();
-  num_toks_ = 0;
   warned_ = false;
   decoding_finalized_ = false;
   final_costs_.clear();
@@ -69,7 +66,6 @@ void LatticeIncrementalDecoderTpl<FST, Token>::InitDecoding() {
   KALDI_ASSERT(start_state != fst::kNoStateId);
   frames_.Add();
   auto &start_tok = frames_.back().tokens.Add(0.0, 0.0, nullptr);
-  num_toks_++;
   toks_.Insert(start_state, &start_tok);
 
   determinizer_.Init();
@@ -199,7 +195,6 @@ inline Token *LatticeIncrementalDecoderTpl<FST, Token>::FindOrAddToken(
     // as any of them could end up
     // on the winning path.
     auto &new_tok = frame.tokens.Add(tot_cost, extra_cost, backpointer);
-    num_toks_++;
     toks_.Insert(state, &new_tok);
     if (changed) *changed = true;
     return &new_tok;
@@ -401,7 +396,6 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneTokensForFrame(
       // token is unreachable from end of graph; (no forward links survived)
       // excise tok from list and delete tok.
       frame.tokens.Delete(current_tok_iter);
-      num_toks_--;
     }
   }
 }
@@ -414,7 +408,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneTokensForFrame(
 template <typename FST, typename Token>
 void LatticeIncrementalDecoderTpl<FST, Token>::PruneActiveTokens(BaseFloat delta) {
   int32 cur_frame_plus_one = NumFramesDecoded();
-  int32 num_toks_begin = num_toks_;
+  int32 num_toks_begin = frames_.token_count;
 
   // The index "f" below represents a "frame plus one", i.e. you'd have to subtract
   // one to get the corresponding index for the decodable object.
@@ -439,7 +433,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneActiveTokens(BaseFloat delta
     }
   }
   KALDI_VLOG(4) << "pruned tokens from " << num_toks_begin
-                << " to " << num_toks_;
+                << " to " << frames_.token_count;
 }
 
 template <typename FST, typename Token>
@@ -541,7 +535,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::AdvanceDecoding(
 template <typename FST, typename Token>
 void LatticeIncrementalDecoderTpl<FST, Token>::FinalizeDecoding() {
   int32 final_frame_plus_one = NumFramesDecoded();
-  int32 num_toks_begin = num_toks_;
+  int32 num_toks_begin = frames_.token_count;
   // PruneForwardLinksFinal() prunes the final frame (with final-probs), and
   // sets decoding_finalized_.
   PruneForwardLinksFinal();
@@ -552,7 +546,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::FinalizeDecoding() {
     PruneTokensForFrame(f + 1);
   }
   PruneTokensForFrame(0);
-  KALDI_VLOG(4) << "pruned tokens from " << num_toks_begin << " to " << num_toks_;
+  KALDI_VLOG(4) << "pruned tokens from " << num_toks_begin << " to " << frames_.token_count;
 }
 
 /// Gets the weight cutoff.  Also counts the active tokens.
