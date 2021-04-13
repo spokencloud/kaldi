@@ -72,7 +72,7 @@ typename LatticeIncrementalOnlineDecoderTpl<FST>::BestPathIterator LatticeIncrem
   BaseFloat best_cost = std::numeric_limits<BaseFloat>::infinity();
   BaseFloat best_final_cost = 0;
   const Token *best_tok = NULL;
-  for (auto &tok : this->active_toks_.back()) {
+  for (auto &tok : this->frames_.back()) {
     BaseFloat cost = tok.tot_cost, final_cost = 0.0;
     if (use_final_probs && !final_costs.empty()) {
       // if we are instructed to use final-probs, and any final tokens were
@@ -120,8 +120,8 @@ typename LatticeIncrementalOnlineDecoderTpl<FST>::BestPathIterator LatticeIncrem
           oarc->ilabel = link.ilabel;
           oarc->olabel = link.olabel;
           if (link.ilabel != 0) {
-            KALDI_ASSERT(static_cast<size_t>(cur_t) < this->active_toks_.size());
-            acoustic_cost -= this->active_toks_[cur_t].cost_offset;
+            KALDI_ASSERT(static_cast<size_t>(cur_t) < this->frames_.size());
+            acoustic_cost -= this->frames_[cur_t].cost_offset;
             step_t = -1;
           } else {
             step_t = 0;
