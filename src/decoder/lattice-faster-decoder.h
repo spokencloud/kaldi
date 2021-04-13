@@ -133,7 +133,8 @@ public:
 
   void Add(
     Token *next_tok, fst::StdArc::Label ilabel, fst::StdArc::Label olabel,
-    BaseFloat graph_cost, BaseFloat acoustic_cost) {
+    BaseFloat graph_cost, BaseFloat acoustic_cost
+  ) {
     List::emplace_front(next_tok, ilabel, olabel, graph_cost, acoustic_cost);
   }
 
@@ -220,6 +221,10 @@ public:
   explicit TokenList(int &token_counter) :
     token_counter_(token_counter)
   {}
+  TokenList(TokenList &&) noexcept = default;
+  ~TokenList() {
+    token_counter_ -= List::size();
+  }
 
   Token &Add(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
     List::emplace_front(tot_cost, extra_cost, backpointer);
@@ -278,7 +283,6 @@ public:
 
   void DeleteAll() {
     List::clear();
-    token_count = 0;
   }
 
   int token_count{0};
