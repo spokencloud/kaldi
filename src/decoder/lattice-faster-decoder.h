@@ -207,6 +207,11 @@ struct TokenList : private std::list<Token> {
   bool must_prune_forward_links;
   bool must_prune_tokens;
 
+  // This contains an offset that was added to the acoustic log-likelihoods on that
+  // frame in order to keep everything in a nice dynamic range i.e. close to
+  // zero, to reduce roundoff errors.
+  BaseFloat cost_offset;
+
   Token &AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
     std::list<Token>::emplace_front(tot_cost, extra_cost, backpointer);
     return std::list<Token>::front();
@@ -218,7 +223,8 @@ struct TokenList : private std::list<Token> {
 
   TokenList() :
     must_prune_forward_links(true),
-    must_prune_tokens(true)
+    must_prune_tokens(true),
+    cost_offset(0)
   {}
   TokenList(TokenList &&tl) noexcept = default;
 
@@ -476,10 +482,6 @@ class LatticeFasterDecoderTpl {
   // object is destroyed.
   bool delete_fst_;
 
-  std::vector<BaseFloat> cost_offsets_; // This contains, for each
-  // frame, an offset that was added to the acoustic log-likelihoods on that
-  // frame in order to keep everything in a nice dynamic range i.e.  close to
-  // zero, to reduce roundoff errors.
   LatticeFasterDecoderConfig config_;
   int32 num_toks_; // current total #toks allocated...
   bool warned_;

@@ -60,7 +60,6 @@ template <typename FST, typename Token>
 void LatticeIncrementalDecoderTpl<FST, Token>::InitDecoding() {
   // clean up from last time:
   DeleteElems(toks_.Clear());
-  cost_offsets_.clear();
   active_toks_.clear();
   num_toks_ = 0;
   warned_ = false;
@@ -675,10 +674,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
   }
 
   // Store the offset on the acoustic likelihoods that we're applying.
-  // Could just do cost_offsets_.push_back(cost_offset), but we
-  // do it this way as it's more robust to future code changes.
-  cost_offsets_.resize(frame + 1, 0.0);
-  cost_offsets_[frame] = cost_offset;
+  active_toks_[frame].cost_offset = cost_offset;
 
   // the tokens are now owned here, in final_toks, and the hash is empty.
   // 'owned' is a complex thing here; the point is we need to call DeleteElem
@@ -902,8 +898,8 @@ const CompactLattice& LatticeIncrementalDecoderTpl<FST, Token>::GetLattice(
     for (int32 frame = num_frames_to_include;
          frame >= num_frames_in_lattice_; frame--) {
       // The conditional below is needed for the last frame of the utterance.
-      BaseFloat cost_offset = (frame < cost_offsets_.size() ?
-                               cost_offsets_[frame] : 0.0);
+      BaseFloat cost_offset = (frame < active_toks_.size() ?
+                               active_toks_[frame].cost_offset : 0.0);
 
       // For the first frame of the chunk, we need to make sure the states are
       // the ones created by InitializeRawLatticeChunk() (where not pruned away).

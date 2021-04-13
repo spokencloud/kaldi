@@ -144,8 +144,7 @@ typename LatticeFasterOnlineDecoderTpl<FST>::BestPathIterator LatticeFasterOnlin
           oarc->ilabel = link.ilabel;
           oarc->olabel = link.olabel;
           if (link.ilabel != 0) {
-            KALDI_ASSERT(static_cast<size_t>(cur_t) < this->cost_offsets_.size());
-            acoustic_cost -= this->cost_offsets_[cur_t];
+            acoustic_cost -= this->active_toks_[cur_t].cost_offset;
             step_t = -1;
           } else {
             step_t = 0;
@@ -219,7 +218,7 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
     const Token *cur_tok = cur_tok_pair.first;
     int32 cur_frame = cur_tok_pair.second;
     KALDI_ASSERT(cur_frame >= 0 &&
-                 cur_frame <= this->cost_offsets_.size());
+                 cur_frame <= this->active_toks_.size());
 
     auto iter = tok_map.find(cur_tok);
     KALDI_ASSERT(iter != tok_map.end());
@@ -238,7 +237,7 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
           nextstate = tok_map[next_tok];
         }
         BaseFloat cost_offset = (l.ilabel != 0 ?
-                                 this->cost_offsets_[cur_frame] : 0);
+                                 this->active_toks_[cur_frame].cost_offset : 0);
         Arc arc(l.ilabel, l.olabel,
                 Weight(l.graph_cost, l.acoustic_cost - cost_offset),
                 nextstate);

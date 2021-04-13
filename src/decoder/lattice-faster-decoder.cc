@@ -55,7 +55,6 @@ template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::InitDecoding() {
   // clean up from last time:
   DeleteElems(toks_.Clear());
-  cost_offsets_.clear();
   active_toks_.clear();
   num_toks_ = 0;
   warned_ = false;
@@ -160,8 +159,7 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
         StateId nextstate = iter->second;
         BaseFloat cost_offset = 0.0;
         if (l.ilabel != 0) {  // emitting..
-          KALDI_ASSERT(f >= 0 && f < cost_offsets_.size());
-          cost_offset = cost_offsets_[f];
+          cost_offset = active_toks_[f].cost_offset;
         }
         Arc arc(l.ilabel, l.olabel,
                 Weight(l.graph_cost, l.acoustic_cost - cost_offset),
@@ -733,10 +731,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
   }
 
   // Store the offset on the acoustic likelihoods that we're applying.
-  // Could just do cost_offsets_.push_back(cost_offset), but we
-  // do it this way as it's more robust to future code changes.
-  cost_offsets_.resize(frame + 1, 0.0);
-  cost_offsets_[frame] = cost_offset;
+  active_toks_[frame].cost_offset = cost_offset;
 
   // the tokens are now owned here, in final_toks, and the hash is empty.
   // 'owned' is a complex thing here; the point is we need to call DeleteElem
