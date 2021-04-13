@@ -137,7 +137,7 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
                  << ": not producing lattice.\n";
       return false;
     }
-    TopSortTokens(frames_[f], &token_list);
+    TopSortTokens(frames_[f].tokens, &token_list);
     for (size_t i = 0; i < token_list.size(); i++)
       if (token_list[i] != NULL)
         tok_map[token_list[i]] = ofst->AddState();
@@ -849,15 +849,15 @@ void LatticeFasterDecoderTpl<FST, Token>::DeleteElems(Elem *list) {
 // static
 template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::TopSortTokens(
-    const decoder::Frame<Token> &frame, std::vector<const Token*> *topsorted_list) {
+    const decoder::TokenList<Token> &tokens, std::vector<const Token*> *topsorted_list) {
   unordered_map<const Token*, int32> token2pos;
-  int32 num_toks = frame.tokens.size();
+  int32 num_toks = tokens.size();
   int32 cur_pos = 0;
   // We assign the tokens numbers num_toks - 1, ... , 2, 1, 0.
   // This is likely to be in closer to topological order than
   // if we had given them ascending order, because of the way
   // new tokens are put at the front of the list.
-  for (auto &tok : frame.tokens)
+  for (auto &tok : tokens)
     token2pos[&tok] = num_toks - ++cur_pos;
 
   unordered_set<const Token*> reprocess;

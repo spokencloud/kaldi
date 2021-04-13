@@ -535,7 +535,7 @@ class LatticeFasterDecoderTpl {
   // cycles, which are not allowed).  Note: the output list may contain NULLs,
   // which the caller should pass over; it just happens to be more efficient for
   // the algorithm to output a list that contains NULLs.
-  static void TopSortTokens(const decoder::Frame<Token> &frame,
+  static void TopSortTokens(const decoder::TokenList<Token> &tokens,
                             std::vector<const Token*> *topsorted_list);
 
   KALDI_DISALLOW_COPY_AND_ASSIGN(LatticeFasterDecoderTpl);
