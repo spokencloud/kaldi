@@ -60,14 +60,14 @@ template <typename FST, typename Token>
 void LatticeIncrementalDecoderTpl<FST, Token>::InitDecoding() {
   // clean up from last time:
   DeleteElems(toks_.Clear());
-  frames_.clear();
+  frames_.DeleteAll();
   num_toks_ = 0;
   warned_ = false;
   decoding_finalized_ = false;
   final_costs_.clear();
   StateId start_state = fst_->Start();
   KALDI_ASSERT(start_state != fst::kNoStateId);
-  frames_.emplace_back(0);
+  frames_.Add();
   auto &start_tok = frames_.back().tokens.Add(0.0, 0.0, nullptr);
   num_toks_++;
   toks_.Insert(start_state, &start_tok);
@@ -630,7 +630,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
     DecodableInterface *decodable) {
   KALDI_ASSERT(!frames_.empty());
   auto &last_frame = frames_.back();
-  frames_.emplace_back(frames_.size());
+  frames_.Add();
 
   Elem *final_toks = toks_.Clear(); // analogous to swapping prev_toks_ / cur_toks_
                                     // in simple-decoder.h.   Removes the Elems from

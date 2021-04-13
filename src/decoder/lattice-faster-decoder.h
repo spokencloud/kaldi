@@ -256,6 +256,28 @@ struct Frame : private std::list<Token> {
 
   friend bool operator ==(const Frame<Token> &f1, const Frame<Token> &f2) { return f1.number == f2.number; }
 };
+
+template<typename Token>
+class FrameList : private std::vector<Frame<Token>> {
+  using List = std::vector<Frame<Token>>;
+
+public:
+  void Add() {
+    List::emplace_back(List::size());
+  }
+
+  void DeleteAll() {
+    List::clear();
+  }
+
+  using List::begin;
+  using List::end;
+  using List::size;
+  using List::empty;
+  using List::front;
+  using List::back;
+  using List::operator[];
+};
 }  // namespace decoder
 
 
@@ -494,7 +516,7 @@ class LatticeFasterDecoderTpl {
   // the graph.
   HashList<StateId, Token*> toks_;
 
-  std::vector<Frame> frames_; // List of frames
+  decoder::FrameList<Token> frames_; // List of frames
 
   // fst_ is a pointer to the FST we are decoding from.
   const FST *fst_;

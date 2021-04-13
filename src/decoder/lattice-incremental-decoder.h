@@ -628,7 +628,7 @@ class LatticeIncrementalDecoderTpl {
   void ProcessNonemitting(BaseFloat cost_cutoff);
 
   HashList<StateId, Token *> toks_;
-  std::vector<Frame> frames_;
+  decoder::FrameList<Token> frames_;
   const FST *fst_;
   bool delete_fst_;
   int32 num_toks_;
