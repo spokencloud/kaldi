@@ -96,7 +96,7 @@ typename LatticeFasterOnlineDecoderTpl<FST>::BestPathIterator LatticeFasterOnlin
   BaseFloat best_cost = std::numeric_limits<BaseFloat>::infinity();
   BaseFloat best_final_cost = 0;
   const Token *best_tok = NULL;
-  for (auto &tok : this->active_toks_.back()) {
+  for (auto &tok : this->frames_.back()) {
     BaseFloat cost = tok.tot_cost, final_cost = 0.0;
     if (use_final_probs && !final_costs.empty()) {
       // if we are instructed to use final-probs, and any final tokens were
@@ -144,7 +144,7 @@ typename LatticeFasterOnlineDecoderTpl<FST>::BestPathIterator LatticeFasterOnlin
           oarc->ilabel = link.ilabel;
           oarc->olabel = link.olabel;
           if (link.ilabel != 0) {
-            acoustic_cost -= this->active_toks_[cur_t].cost_offset;
+            acoustic_cost -= this->frames_[cur_t].cost_offset;
             step_t = -1;
           } else {
             step_t = 0;
@@ -193,10 +193,10 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
   ofst->DeleteStates();
   // num-frames plus one (since frames are one-based, and we have
   // an extra frame for the start-state).
-  int32 num_frames = this->active_toks_.size() - 1;
+  int32 num_frames = this->frames_.size() - 1;
   KALDI_ASSERT(num_frames > 0);
   for (int32 f = 0; f <= num_frames; f++) {
-    if (this->active_toks_[f].empty()) {
+    if (this->frames_[f].empty()) {
       KALDI_WARN << "No tokens active on frame " << f
                  << ": not producing lattice.\n";
       return false;
@@ -205,8 +205,8 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
   unordered_map<const Token*, StateId> tok_map;
   std::queue<std::pair<const Token*, int32> > tok_queue;
   // First initialize the queue and states.  Put the initial state on the queue;
-  // this is the last token in the list active_toks_[0].toks.
-  auto &tok = this->active_toks_.front().back();
+  // this is the last token in the list frames_[0].tokens.
+  auto &tok = this->frames_.front().back();
   tok_map[&tok] = ofst->AddState();
   ofst->SetStart(tok_map[&tok]);
   tok_queue.emplace(&tok, 0);
@@ -218,7 +218,7 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
     const Token *cur_tok = cur_tok_pair.first;
     int32 cur_frame = cur_tok_pair.second;
     KALDI_ASSERT(cur_frame >= 0 &&
-                 cur_frame <= this->active_toks_.size());
+                 cur_frame <= this->frames_.size());
 
     auto iter = tok_map.find(cur_tok);
     KALDI_ASSERT(iter != tok_map.end());
@@ -237,7 +237,7 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
           nextstate = tok_map[next_tok];
         }
         BaseFloat cost_offset = (l.ilabel != 0 ?
-                                 this->active_toks_[cur_frame].cost_offset : 0);
+                                 this->frames_[cur_frame].cost_offset : 0);
         Arc arc(l.ilabel, l.olabel,
                 Weight(l.graph_cost, l.acoustic_cost - cost_offset),
                 nextstate);

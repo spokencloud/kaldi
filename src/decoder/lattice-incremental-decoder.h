@@ -596,7 +596,7 @@ class LatticeIncrementalDecoderTpl {
   BaseFloat FinalRelativeCost() const;
 
   /** Returns the number of frames decoded so far. */
-  inline int32 NumFramesDecoded() const { return active_toks_.size() - 1; }
+  inline int32 NumFramesDecoded() const { return frames_.size() - 1; }
 
   /**
      Finalizes the decoding, doing an extra pruning step on the last frame
@@ -628,7 +628,7 @@ class LatticeIncrementalDecoderTpl {
   void ProcessNonemitting(BaseFloat cost_cutoff);
 
   HashList<StateId, Token *> toks_;
-  std::vector<decoder::Frame<Token>> active_toks_;  // indexed by frame.
+  std::vector<decoder::Frame<Token>> frames_;
   const FST *fst_;
   bool delete_fst_;
   int32 num_toks_;
@@ -653,7 +653,7 @@ class LatticeIncrementalDecoderTpl {
   int32 num_frames_in_lattice_;
 
   // A map from Token to its token_label.  Will contain an entry for
-  // each Token in active_toks_[num_frames_in_lattice_].
+  // each Token in frames_[num_frames_in_lattice_].tokens.
   unordered_map<const Token*, Label> token2label_map_;
 
   // we allocate a unique id for each Token

@@ -374,7 +374,7 @@ class LatticeFasterDecoderTpl {
 
   // Returns the number of frames decoded so far.  The value returned changes
   // whenever we call ProcessEmitting().
-  inline int32 NumFramesDecoded() const { return active_toks_.size() - 1; }
+  inline int32 NumFramesDecoded() const { return frames_.size() - 1; }
 
  protected:
   // we make things protected instead of private, as code in
@@ -394,9 +394,9 @@ class LatticeFasterDecoderTpl {
   // FindOrAddToken either locates a token in hash of toks_, or if necessary
   // inserts a new, empty token (i.e. with no forward links) for the current
   // frame.  [note: it's inserted if necessary into hash toks_ and also into the
-  // singly linked list of tokens active on this frame (whose head is at
-  // active_toks_[frame]).  The frame_plus_one argument is the acoustic frame
-  // index plus one, which is used to index into the active_toks_ array.
+  // list of tokens active on this frame (frames_[frame].tokens)
+  // The frame_plus_one argument is the acoustic frame
+  // index plus one, which is used to index into the frames_ array.
   // Returns the Token pointer.  Sets "changed" (if non-NULL) to true if the
   // token was newly created or the cost changed.
   // If Token == StdToken, the 'backpointer' argument has no purpose (and will
@@ -405,7 +405,7 @@ class LatticeFasterDecoderTpl {
                               BaseFloat tot_cost, Token *backpointer,
                               bool *changed);
 
-  // prunes outgoing links for all tokens in active_toks_[frame]
+  // prunes outgoing links for all tokens in frames_[frame].tokens
   // it's called by PruneActiveTokens
   // all links, that have link_extra_cost > lattice_beam are pruned
   // delta is the amount by which the extra_costs must change
@@ -482,7 +482,7 @@ class LatticeFasterDecoderTpl {
   // the graph.
   HashList<StateId, Token*> toks_;
 
-  std::vector<decoder::Frame<Token>> active_toks_; // Lists of frames
+  std::vector<decoder::Frame<Token>> frames_; // List of frames
 
   // fst_ is a pointer to the FST we are decoding from.
   const FST *fst_;
