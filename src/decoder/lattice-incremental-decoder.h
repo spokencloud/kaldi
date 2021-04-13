@@ -467,7 +467,7 @@ class LatticeIncrementalDecoderTpl {
   using Label = typename Arc::Label;
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
-  using ForwardLinkT = decoder::ForwardLink<Token>;
+  using Frame = decoder::Frame<Token>;
 
   // Instantiate this class once for each thing you have to decode.
   // This version of the constructor does not take ownership of
@@ -612,7 +612,7 @@ class LatticeIncrementalDecoderTpl {
 ;
   using Elem = typename HashList<StateId, Token *>::Elem;
   void PossiblyResizeHash(size_t num_toks);
-  inline Token *FindOrAddToken(StateId state, int32 frame_plus_one,
+  inline Token *FindOrAddToken(StateId state, decoder::TokenList<Token> &tokens,
                                BaseFloat tot_cost, Token *backpointer, bool *changed);
   void PruneForwardLinks(int32 frame_plus_one, bool *extra_costs_changed,
                          bool *links_pruned, BaseFloat delta);
@@ -628,7 +628,7 @@ class LatticeIncrementalDecoderTpl {
   void ProcessNonemitting(BaseFloat cost_cutoff);
 
   HashList<StateId, Token *> toks_;
-  std::vector<decoder::Frame<Token>> frames_;
+  std::vector<Frame> frames_;
   const FST *fst_;
   bool delete_fst_;
   int32 num_toks_;

@@ -106,8 +106,8 @@ void LatticeIncrementalDecoderTpl<FST, Token>::UpdateLatticeDeterminization() {
      best_frame. */
   bool use_final_probs = false;
   GetLattice(best_frame, use_final_probs);
-  return;
 }
+
 // Returns true if any kind of traceback is available (not necessarily from
 // a final state).  It should only very rarely return false; this indicates
 // an unusual search error.
@@ -185,21 +185,20 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PossiblyResizeHash(size_t num_tok
 // FindOrAddToken either locates a token in hash of toks_,
 // or if necessary inserts a new, empty token (i.e. with no forward links)
 // for the current frame.  [note: it's inserted if necessary into hash toks_
-// and also into the list of tokens active on this frame (frames_[frame].tokens).
+// and also into the list of tokens active on this frame (frame.tokens).
 template <typename FST, typename Token>
 inline Token *LatticeIncrementalDecoderTpl<FST, Token>::FindOrAddToken(
-    StateId state, int32 frame_plus_one, BaseFloat tot_cost, Token *backpointer,
+    StateId state, decoder::TokenList<Token> &tokens, BaseFloat tot_cost, Token *backpointer,
     bool *changed) {
   // Returns the Token pointer.  Sets "changed" (if non-NULL) to true
   // if the token was newly created or the cost changed.
-  KALDI_ASSERT(frame_plus_one < frames_.size());
   Elem *e_found = toks_.Find(state);
   if (e_found == NULL) { // no such token presently.
     const BaseFloat extra_cost = 0.0;
     // tokens on the currently final frame have zero extra_cost
     // as any of them could end up
     // on the winning path.
-    auto &new_tok = frames_[frame_plus_one].tokens.Add(tot_cost, extra_cost, backpointer);
+    auto &new_tok = tokens.Add(tot_cost, extra_cost, backpointer);
     num_toks_++;
     toks_.Insert(state, &new_tok);
     if (changed) *changed = true;
@@ -697,7 +696,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
           // Note: the frame indexes into frames_ are one-based,
           // hence the + 1.
           Token *next_tok =
-              FindOrAddToken(arc.nextstate, frame + 1, tot_cost, tok, NULL);
+              FindOrAddToken(arc.nextstate, frames_.back().tokens, tot_cost, tok, NULL);
           // NULL: no change indicator needed
 
           tok->forward_links.Add(next_tok, arc.ilabel, arc.olabel, graph_cost, ac_cost);
@@ -761,7 +760,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cuto
           bool changed;
 
           Token *new_tok =
-              FindOrAddToken(arc.nextstate, frame + 1, tot_cost, tok, &changed);
+              FindOrAddToken(arc.nextstate, frames_.back().tokens, tot_cost, tok, &changed);
 
           tok->forward_links.Add(new_tok, 0, arc.olabel, graph_cost, 0);
 

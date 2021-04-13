@@ -238,22 +238,21 @@ void LatticeFasterDecoderTpl<FST, Token>::PossiblyResizeHash(size_t num_toks) {
 // FindOrAddToken either locates a token in hash of toks_,
 // or if necessary inserts a new, empty token (i.e. with no forward links)
 // for the current frame.  [note: it's inserted if necessary into hash toks_
-// and also into the list of tokens active on this frame (frames_[frame].tokens).
+// and also into the list of tokens active on this frame (frame.tokens).
 template <typename FST, typename Token>
 inline typename LatticeFasterDecoderTpl<FST, Token>::Elem*
 LatticeFasterDecoderTpl<FST, Token>::FindOrAddToken(
-      StateId state, int32 frame_plus_one, BaseFloat tot_cost,
+      StateId state, decoder::TokenList<Token> &tokens, BaseFloat tot_cost,
       Token *backpointer, bool *changed) {
   // Returns the Token pointer.  Sets "changed" (if non-NULL) to true
   // if the token was newly created or the cost changed.
-  KALDI_ASSERT(frame_plus_one < frames_.size());
   Elem *e_found = toks_.Insert(state, NULL);
   if (e_found->val == NULL) {  // no such token presently.
     const BaseFloat extra_cost = 0.0;
     // tokens on the currently final frame have zero extra_cost
     // as any of them could end up
     // on the winning path.
-    auto &new_tok = frames_[frame_plus_one].tokens.Add(tot_cost, extra_cost, backpointer);
+    auto &new_tok = tokens.Add(tot_cost, extra_cost, backpointer);
     num_toks_++;
     e_found->val = &new_tok;
     if (changed) *changed = true;
@@ -323,8 +322,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinks(
         // link_exta_cost is the difference in score between the best paths
         // through link source state and through link destination state
         KALDI_ASSERT(link_extra_cost == link_extra_cost);  // check for NaN
-        auto curr_link_iter = link_iter;
-        ++link_iter;
+        auto curr_link_iter = link_iter++;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
           tok.forward_links.Delete(curr_link_iter);
           *links_pruned = true;
@@ -404,8 +402,7 @@ void LatticeFasterDecoderTpl<FST, Token>::PruneForwardLinksFinal() {
         BaseFloat link_extra_cost = next_tok->extra_cost +
             ((tok.tot_cost + link.acoustic_cost + link.graph_cost)
              - next_tok->tot_cost);
-        auto curr_link_iter = link_iter;
-        ++link_iter;
+        auto curr_link_iter = link_iter++;
         if (link_extra_cost > config_.lattice_beam) {  // excise link
           tok.forward_links.Delete(curr_link_iter);
         } else { // keep the link and update the tok_extra_cost if needed.
@@ -756,7 +753,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
           // Note: the frame indexes into frames_ are one-based,
           // hence the + 1.
           Elem *e_next = FindOrAddToken(arc.nextstate,
-                                        frame + 1, tot_cost, tok, NULL);
+                                        frames_.back().tokens, tot_cost, tok, NULL);
           // NULL: no change indicator needed
 
           tok->forward_links.Add(e_next->val, arc.ilabel, arc.olabel, graph_cost, ac_cost);
@@ -822,7 +819,7 @@ void LatticeFasterDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
         if (tot_cost < cutoff) {
           bool changed;
 
-          Elem *e_new = FindOrAddToken(arc.nextstate, frame + 1, tot_cost,
+          Elem *e_new = FindOrAddToken(arc.nextstate, frames_.back().tokens, tot_cost,
                                           tok, &changed);
 
           tok->forward_links.Add(e_new->val, 0, arc.olabel, graph_cost, 0);
