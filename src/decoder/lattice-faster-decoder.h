@@ -202,43 +202,32 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
   {}
 };
 
-  // head of per-frame list of Tokens (list is in topological order),
-  // and something saying whether we ever pruned it using PruneForwardLinks.
-  template<typename Token>
-  struct TokenList {
-    bool must_prune_forward_links;
-    bool must_prune_tokens;
+template<typename Token>
+struct TokenList : private std::list<Token> {
+  bool must_prune_forward_links;
+  bool must_prune_tokens;
 
-    Token &AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
-      tokens.emplace_front(tot_cost, extra_cost, backpointer);
-      return tokens.front();
-    }
+  Token &AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
+    std::list<Token>::emplace_front(tot_cost, extra_cost, backpointer);
+    return std::list<Token>::front();
+  }
 
-    void DeleteToken(const typename std::list<Token>::iterator &token_iter) {
-      tokens.erase(token_iter);
-    }
+  void DeleteToken(const typename std::list<Token>::iterator &token_iter) {
+    std::list<Token>::erase(token_iter);
+  }
 
-    TokenList() :
-      must_prune_forward_links(true),
-      must_prune_tokens(true)
-    {}
-    TokenList(TokenList &&tl) noexcept = default;
+  TokenList() :
+    must_prune_forward_links(true),
+    must_prune_tokens(true)
+  {}
+  TokenList(TokenList &&tl) noexcept = default;
 
-    auto begin() { return tokens.begin(); }
-    auto end()   { return tokens.end(); }
-
-    auto begin() const { return tokens.begin(); }
-    auto end() const   { return tokens.end(); }
-
-    bool empty() const { return tokens.empty(); }
-    auto size() const { return tokens.size(); }
-
-    auto &back() { return tokens.back(); }
-    auto &back() const { return tokens.back(); }
-
-  private:
-    std::list<Token> tokens;
-  };
+  using std::list<Token>::begin;
+  using std::list<Token>::end;
+  using std::list<Token>::empty;
+  using std::list<Token>::size;
+  using std::list<Token>::back;
+};
 }  // namespace decoder
 
 
