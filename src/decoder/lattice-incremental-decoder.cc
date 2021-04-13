@@ -629,10 +629,7 @@ template <typename FST, typename Token>
 BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
     DecodableInterface *decodable) {
   KALDI_ASSERT(!frames_.empty());
-  int32 frame = frames_.size() - 1; // frame is the frame-index
-                                         // (zero-based) used to get likelihoods
-                                         // from the decodable object.
-  frames_.emplace_back(frames_.size());
+  auto last_frame_number = frames_.back().number;
 
   Elem *final_toks = toks_.Clear(); // analogous to swapping prev_toks_ / cur_toks_
                                     // in simple-decoder.h.   Removes the Elems from
@@ -663,7 +660,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
       const Arc &arc = aiter.Value();
       if (arc.ilabel != 0) { // propagate..
         BaseFloat new_weight = arc.weight.Value() + cost_offset -
-                               decodable->LogLikelihood(frame, arc.ilabel) +
+                               decodable->LogLikelihood(last_frame_number, arc.ilabel) +
                                tok->tot_cost;
         if (new_weight + adaptive_beam < next_cutoff)
           next_cutoff = new_weight + adaptive_beam;
@@ -672,7 +669,8 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
   }
 
   // Store the offset on the acoustic likelihoods that we're applying.
-  frames_[frame].cost_offset = cost_offset;
+  frames_.back().cost_offset = cost_offset;
+  frames_.emplace_back(frames_.size());
 
   // the tokens are now owned here, in final_toks, and the hash is empty.
   // 'owned' is a complex thing here; the point is we need to call DeleteElem
@@ -686,7 +684,7 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
         const Arc &arc = aiter.Value();
         if (arc.ilabel != 0) { // propagate..
           BaseFloat ac_cost =
-                        cost_offset - decodable->LogLikelihood(frame, arc.ilabel),
+                        cost_offset - decodable->LogLikelihood(last_frame_number, arc.ilabel),
                     graph_cost = arc.weight.Value(), cur_cost = tok->tot_cost,
                     tot_cost = cur_cost + ac_cost + graph_cost;
           if (tot_cost >= next_cutoff)
@@ -712,7 +710,6 @@ BaseFloat LatticeIncrementalDecoderTpl<FST, Token>::ProcessEmitting(
 template <typename FST, typename Token>
 void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cutoff) {
   KALDI_ASSERT(!frames_.empty());
-  int32 frame = static_cast<int32>(frames_.size()) - 2;
   // Note: "frame" is the time-index we just processed, or -1 if
   // we are processing the nonemitting transitions before the
   // first frame (called from InitDecoding()).
@@ -727,7 +724,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::ProcessNonemitting(BaseFloat cuto
 
   if (toks_.GetList() == NULL) {
     if (!warned_) {
-      KALDI_WARN << "Error, no surviving tokens: frame is " << frame;
+      KALDI_WARN << "Error, no surviving tokens: frame is " << frames_.size() - 2;
       warned_ = true;
     }
   }
