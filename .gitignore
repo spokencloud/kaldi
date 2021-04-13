@@ -158,7 +158,3 @@ GSYMS
 # They are added here to avoid accidently checkin.
 /src/**/CMakeLists.txt
 /build*
-cmake-build-*
-.completed
-.idea
-/.cxxflags
