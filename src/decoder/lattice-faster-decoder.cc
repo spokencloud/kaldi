@@ -62,7 +62,7 @@ void LatticeFasterDecoderTpl<FST, Token>::InitDecoding() {
   final_costs_.clear();
   StateId start_state = fst_->Start();
   KALDI_ASSERT(start_state != fst::kNoStateId);
-  frames_.emplace_back();
+  frames_.emplace_back(0);
   auto &start_tok = frames_.back().tokens.Add(0.0, 0.0, nullptr);
   num_toks_++;
   toks_.Insert(start_state, &start_tok);
@@ -688,7 +688,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
   int32 frame = frames_.size() - 1; // frame is the frame-index
                                          // (zero-based) used to get likelihoods
                                          // from the decodable object.
-  frames_.emplace_back();
+  frames_.emplace_back(frames_.size());
 
   Elem *final_toks = toks_.Clear(); // analogous to swapping prev_toks_ / cur_toks_
                                    // in simple-decoder.h.   Removes the Elems from
