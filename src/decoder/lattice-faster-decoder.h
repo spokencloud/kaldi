@@ -235,6 +235,7 @@ public:
 
 template<typename Token>
 struct Frame : private std::list<Token> {
+  int number;
   bool must_prune_forward_links;
   bool must_prune_tokens;
 
@@ -245,7 +246,8 @@ struct Frame : private std::list<Token> {
 
   TokenList<Token> tokens;
 
-  Frame() :
+  Frame(int number) :
+    number(number),
     must_prune_forward_links(true),
     must_prune_tokens(true),
     cost_offset(0)
