@@ -422,7 +422,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneActiveTokens(BaseFloat delta
   // one to get the corresponding index for the decodable object.
   for (int32 f = cur_frame_plus_one - 1; f >= 0; f--) {
     // Reason why we need to prune forward links in this situation:
-    // (1) we have never pruned them (new TokenList)
+    // (1) we have never pruned them (new Frame)
     // (2) we have not yet pruned the forward links to the next f,
     // after any of those tokens have changed their extra_cost.
     if (active_toks_[f].must_prune_forward_links) {
