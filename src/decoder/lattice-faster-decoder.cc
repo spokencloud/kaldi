@@ -125,19 +125,18 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
   ofst->DeleteStates();
   // num-frames plus one (since frames are one-based, and we have
   // an extra frame for the start-state).
-  int32 num_frames = frames_.size() - 1;
-  KALDI_ASSERT(num_frames > 0);
+  KALDI_ASSERT(frames_.size() > 1);
   const int32 bucket_count = num_toks_/2 + 3;
   unordered_map<const Token*, StateId> tok_map(bucket_count);
   // First create all states.
   std::vector<const Token*> token_list;
-  for (int32 f = 0; f <= num_frames; f++) {
-    if (frames_[f].tokens.empty()) {
-      KALDI_WARN << "GetRawLattice: no tokens active on frame " << f
+  for (auto &frame : frames_) {
+    if (frame.tokens.empty()) {
+      KALDI_WARN << "GetRawLattice: no tokens active on frame " << frame.number
                  << ": not producing lattice.\n";
       return false;
     }
-    TopSortTokens(frames_[f].tokens, &token_list);
+    TopSortTokens(frame.tokens, &token_list);
     for (size_t i = 0; i < token_list.size(); i++)
       if (token_list[i] != NULL)
         tok_map[token_list[i]] = ofst->AddState();
@@ -150,8 +149,8 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
                 << tok_map.bucket_count() << " load:" << tok_map.load_factor()
                 << " max:" << tok_map.max_load_factor();
   // Now create all arcs.
-  for (int32 f = 0; f <= num_frames; f++) {
-    for (auto &tok : frames_[f].tokens) {
+  for (auto &frame : frames_) {
+    for (auto &tok : frame.tokens) {
       StateId cur_state = tok_map[&tok];
       for (auto &l : tok.forward_links) {
         auto iter = tok_map.find(l.next_tok);
@@ -159,14 +158,14 @@ bool LatticeFasterDecoderTpl<FST, Token>::GetRawLattice(
         StateId nextstate = iter->second;
         BaseFloat cost_offset = 0.0;
         if (l.ilabel != 0) {  // emitting..
-          cost_offset = frames_[f].cost_offset;
+          cost_offset = frame.cost_offset;
         }
         Arc arc(l.ilabel, l.olabel,
                 Weight(l.graph_cost, l.acoustic_cost - cost_offset),
                 nextstate);
         ofst->AddArc(cur_state, arc);
       }
-      if (f == num_frames) {
+      if (frame == frames_.back()) {
         if (use_final_probs && !final_costs.empty()) {
           auto iter = final_costs.find(&tok);
           if (iter != final_costs.end())
@@ -682,11 +681,7 @@ template <typename FST, typename Token>
 BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
     DecodableInterface *decodable) {
   KALDI_ASSERT(!frames_.empty());
-  int32 frame = frames_.size() - 1; // frame is the frame-index
-                                         // (zero-based) used to get likelihoods
-                                         // from the decodable object.
-  frames_.emplace_back(frames_.size());
-
+  auto last_frame_number = frames_.back().number;
   Elem *final_toks = toks_.Clear(); // analogous to swapping prev_toks_ / cur_toks_
                                    // in simple-decoder.h.   Removes the Elems from
                                    // being indexed in the hash in toks_.
@@ -719,7 +714,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
       const Arc &arc = aiter.Value();
       if (arc.ilabel != 0) {  // propagate..
         BaseFloat new_weight = arc.weight.Value() + cost_offset -
-            decodable->LogLikelihood(frame, arc.ilabel) + tok->tot_cost;
+            decodable->LogLikelihood(last_frame_number, arc.ilabel) + tok->tot_cost;
         if (new_weight + adaptive_beam < next_cutoff)
           next_cutoff = new_weight + adaptive_beam;
       }
@@ -727,7 +722,8 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
   }
 
   // Store the offset on the acoustic likelihoods that we're applying.
-  frames_[frame].cost_offset = cost_offset;
+  frames_.back().cost_offset = cost_offset;
+  frames_.emplace_back(frames_.size());
 
   // the tokens are now owned here, in final_toks, and the hash is empty.
   // 'owned' is a complex thing here; the point is we need to call DeleteElem
@@ -743,7 +739,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
         const Arc &arc = aiter.Value();
         if (arc.ilabel != 0) {  // propagate..
           BaseFloat ac_cost = cost_offset -
-              decodable->LogLikelihood(frame, arc.ilabel),
+              decodable->LogLikelihood(last_frame_number, arc.ilabel),
               graph_cost = arc.weight.Value(),
               cur_cost = tok->tot_cost,
               tot_cost = cur_cost + ac_cost + graph_cost;
