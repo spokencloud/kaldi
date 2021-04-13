@@ -18,8 +18,6 @@ execute_process(COMMAND ${PYTHON_EXECUTABLE}
     "--quiet"
 )
 
-add_compile_options(-Wall -Wno-sign-compare -Wno-unused-local-typedefs -Wno-deprecated-declarations -Winit-self -Wno-sign-compare)
-
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INSTALL_MESSAGE LAZY) # hide "-- Up-to-date: ..."
