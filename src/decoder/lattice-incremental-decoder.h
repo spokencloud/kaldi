@@ -440,22 +440,6 @@ class LatticeIncrementalDeterminizer {
   KALDI_DISALLOW_COPY_AND_ASSIGN(LatticeIncrementalDeterminizer);
 };
 
-
-namespace decoder {
-  template<typename Token>
-  class TokenListWithCount : public TokenList<Token>
-  {
-  public:
-    int32 num_toks;
-
-    TokenListWithCount() : num_toks(-1) {}
-    TokenListWithCount(TokenListWithCount &&tl) noexcept :
-      TokenList<Token>(std::forward<TokenList<Token> &&>(tl)),
-      num_toks(tl.num_toks)
-    {}
-  };
-}
-
 /** This is an extention to the "normal" lattice-generating decoder.
    See \ref lattices_generation \ref decoders_faster and \ref decoders_simple
     for more information.
@@ -644,7 +628,7 @@ class LatticeIncrementalDecoderTpl {
   void ProcessNonemitting(BaseFloat cost_cutoff);
 
   HashList<StateId, Token *> toks_;
-  std::vector<decoder::TokenListWithCount<Token>> active_toks_;  // indexed by frame.
+  std::vector<decoder::TokenList<Token>> active_toks_;  // indexed by frame.
   std::vector<StateId> queue_;       // temp variable used in ProcessNonemitting,
   std::vector<BaseFloat> tmp_array_; // used in GetCutoff.
   const FST *fst_;
