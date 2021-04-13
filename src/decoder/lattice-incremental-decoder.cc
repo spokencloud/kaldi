@@ -97,12 +97,9 @@ void LatticeIncrementalDecoderTpl<FST, Token>::UpdateLatticeDeterminization() {
       fewest_tokens = std::numeric_limits<int32>::max(),
       best_frame = -1;
   for (int32 t = last; t >= first; t--) {
-    /* Make sure PruneActiveTokens() has computed num_toks for all these
-       frames... */
-    KALDI_ASSERT(active_toks_[t].num_toks != -1);
-    if (active_toks_[t].num_toks < fewest_tokens) {
+    if (active_toks_[t].size() < fewest_tokens) {
       //  <= because we want the latest one in case of ties.
-      fewest_tokens = active_toks_[t].num_toks;
+      fewest_tokens = active_toks_[t].size();
       best_frame = t;
     }
   }
@@ -401,8 +398,7 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneTokensForFrame(
   KALDI_ASSERT(frame_plus_one >= 0 && frame_plus_one < active_toks_.size());
   auto &frame = active_toks_[frame_plus_one];
   if (frame.empty()) KALDI_WARN << "No tokens alive [doing pruning]";
-  int32 num_toks = 0;
-  for (auto tok_iter = frame.begin(); tok_iter != frame.end(); num_toks++) {
+  for (auto tok_iter = frame.begin(); tok_iter != frame.end();) {
     auto current_tok_iter = tok_iter++;
     if (current_tok_iter->extra_cost == std::numeric_limits<BaseFloat>::infinity()) {
       // token is unreachable from end of graph; (no forward links survived)
@@ -411,7 +407,6 @@ void LatticeIncrementalDecoderTpl<FST, Token>::PruneTokensForFrame(
       num_toks_--;
     }
   }
-  frame.num_toks = num_toks;
 }
 
 // Go backwards through still-alive tokens, pruning them, starting not from
@@ -423,13 +418,6 @@ template <typename FST, typename Token>
 void LatticeIncrementalDecoderTpl<FST, Token>::PruneActiveTokens(BaseFloat delta) {
   int32 cur_frame_plus_one = NumFramesDecoded();
   int32 num_toks_begin = num_toks_;
-
-  if (active_toks_[cur_frame_plus_one].num_toks == -1){
-    // The current frame's tokens don't get pruned so they don't get counted
-    // (the count is needed by the incremental determinization code).
-    // Fix this.
-    active_toks_[cur_frame_plus_one].num_toks = active_toks_[cur_frame_plus_one].size();
- }
 
   // The index "f" below represents a "frame plus one", i.e. you'd have to subtract
   // one to get the corresponding index for the decodable object.
