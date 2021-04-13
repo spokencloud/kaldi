@@ -72,7 +72,7 @@ typename LatticeIncrementalOnlineDecoderTpl<FST>::BestPathIterator LatticeIncrem
   BaseFloat best_cost = std::numeric_limits<BaseFloat>::infinity();
   BaseFloat best_final_cost = 0;
   const Token *best_tok = NULL;
-  for (auto &tok : this->frames_.back()) {
+  for (auto &tok : this->frames_.back().tokens) {
     BaseFloat cost = tok.tot_cost, final_cost = 0.0;
     if (use_final_probs && !final_costs.empty()) {
       // if we are instructed to use final-probs, and any final tokens were

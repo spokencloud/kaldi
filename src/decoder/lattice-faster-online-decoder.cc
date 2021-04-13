@@ -96,7 +96,7 @@ typename LatticeFasterOnlineDecoderTpl<FST>::BestPathIterator LatticeFasterOnlin
   BaseFloat best_cost = std::numeric_limits<BaseFloat>::infinity();
   BaseFloat best_final_cost = 0;
   const Token *best_tok = NULL;
-  for (auto &tok : this->frames_.back()) {
+  for (auto &tok : this->frames_.back().tokens) {
     BaseFloat cost = tok.tot_cost, final_cost = 0.0;
     if (use_final_probs && !final_costs.empty()) {
       // if we are instructed to use final-probs, and any final tokens were
@@ -196,7 +196,7 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
   int32 num_frames = this->frames_.size() - 1;
   KALDI_ASSERT(num_frames > 0);
   for (int32 f = 0; f <= num_frames; f++) {
-    if (this->frames_[f].empty()) {
+    if (this->frames_[f].tokens.empty()) {
       KALDI_WARN << "No tokens active on frame " << f
                  << ": not producing lattice.\n";
       return false;
@@ -206,7 +206,7 @@ bool LatticeFasterOnlineDecoderTpl<FST>::GetRawLatticePruned(
   std::queue<std::pair<const Token*, int32> > tok_queue;
   // First initialize the queue and states.  Put the initial state on the queue;
   // this is the last token in the list frames_[0].tokens.
-  auto &tok = this->frames_.front().back();
+  auto &tok = this->frames_.front().tokens.back();
   tok_map[&tok] = ofst->AddState();
   ofst->SetStart(tok_map[&tok]);
   tok_queue.emplace(&tok, 0);

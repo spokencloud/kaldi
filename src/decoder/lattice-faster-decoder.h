@@ -213,6 +213,27 @@ struct BackpointerToken : public BaseToken<BackpointerToken> {
 };
 
 template<typename Token>
+class TokenList : private std::list<Token> {
+  using List = std::list<Token>;
+
+public:
+  Token &Add(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
+    List::emplace_front(tot_cost, extra_cost, backpointer);
+    return List::front();
+  }
+
+  void Delete(const typename std::list<Token>::iterator &token_iter) {
+    List::erase(token_iter);
+  }
+
+  using List::begin;
+  using List::end;
+  using List::empty;
+  using List::size;
+  using List::back;
+};
+
+template<typename Token>
 struct Frame : private std::list<Token> {
   bool must_prune_forward_links;
   bool must_prune_tokens;
@@ -222,14 +243,7 @@ struct Frame : private std::list<Token> {
   // zero, to reduce roundoff errors.
   BaseFloat cost_offset;
 
-  Token &AddToken(BaseFloat tot_cost, BaseFloat extra_cost, Token *backpointer) {
-    std::list<Token>::emplace_front(tot_cost, extra_cost, backpointer);
-    return std::list<Token>::front();
-  }
-
-  void DeleteToken(const typename std::list<Token>::iterator &token_iter) {
-    std::list<Token>::erase(token_iter);
-  }
+  TokenList<Token> tokens;
 
   Frame() :
     must_prune_forward_links(true),
@@ -237,12 +251,6 @@ struct Frame : private std::list<Token> {
     cost_offset(0)
   {}
   Frame(Frame &&tl) noexcept = default;
-
-  using std::list<Token>::begin;
-  using std::list<Token>::end;
-  using std::list<Token>::empty;
-  using std::list<Token>::size;
-  using std::list<Token>::back;
 };
 }  // namespace decoder
 
@@ -527,7 +535,7 @@ class LatticeFasterDecoderTpl {
   // cycles, which are not allowed).  Note: the output list may contain NULLs,
   // which the caller should pass over; it just happens to be more efficient for
   // the algorithm to output a list that contains NULLs.
-  static void TopSortTokens(const decoder::Frame<Token> &tok_list,
+  static void TopSortTokens(const decoder::Frame<Token> &frame,
                             std::vector<const Token*> *topsorted_list);
 
   KALDI_DISALLOW_COPY_AND_ASSIGN(LatticeFasterDecoderTpl);
