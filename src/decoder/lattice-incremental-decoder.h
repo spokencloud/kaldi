@@ -629,7 +629,6 @@ class LatticeIncrementalDecoderTpl {
 
   HashList<StateId, Token *> toks_;
   std::vector<decoder::TokenList<Token>> active_toks_;  // indexed by frame.
-  std::vector<StateId> queue_;       // temp variable used in ProcessNonemitting,
   const FST *fst_;
   bool delete_fst_;
   std::vector<BaseFloat> cost_offsets_;
