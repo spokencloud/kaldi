@@ -55,14 +55,14 @@ template <typename FST, typename Token>
 void LatticeFasterDecoderTpl<FST, Token>::InitDecoding() {
   // clean up from last time:
   DeleteElems(toks_.Clear());
-  frames_.clear();
+  frames_.DeleteAll();
   num_toks_ = 0;
   warned_ = false;
   decoding_finalized_ = false;
   final_costs_.clear();
   StateId start_state = fst_->Start();
   KALDI_ASSERT(start_state != fst::kNoStateId);
-  frames_.emplace_back(0);
+  frames_.Add();
   auto &start_tok = frames_.back().tokens.Add(0.0, 0.0, nullptr);
   num_toks_++;
   toks_.Insert(start_state, &start_tok);
@@ -723,7 +723,7 @@ BaseFloat LatticeFasterDecoderTpl<FST, Token>::ProcessEmitting(
 
   // Store the offset on the acoustic likelihoods that we're applying.
   frames_.back().cost_offset = cost_offset;
-  frames_.emplace_back(frames_.size());
+  frames_.Add();
 
   // the tokens are now owned here, in final_toks, and the hash is empty.
   // 'owned' is a complex thing here; the point is we need to call DeleteElem
